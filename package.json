@@ -1,0 +1,45 @@
+{
+  "name": "stellar-pdf",
+  "version": "1.0.0",
+  "description": "Stellar PDF: beautiful Linux PDF editor with form filling and redaction",
+  "author": "bgrech",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^4.4.168",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.thoughtbanger.stellarpdf",
+    "productName": "Stellar PDF",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!python/**",
+      "!dist/**",
+      "!*.md"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "maintainer": "bgrech"
+    }
+  }
+}

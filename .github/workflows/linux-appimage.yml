@@ -1,0 +1,43 @@
+# Builds a Linux AppImage (Electron + bundled python/venv with PyMuPDF).
+# The venv is created on the runner with --copies so the interpreter is shipped
+# inside the app; still linked against the runner's glibc (Ubuntu), so test on
+# target distros you care about.
+
+name: Linux AppImage
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python venv + PyMuPDF
+        run: |
+          python3 -m venv python/venv --copies
+          python/venv/bin/pip install -U pip
+          python/venv/bin/pip install -r python/requirements.txt
+
+      - name: Node install
+        run: npm ci
+
+      - name: Build AppImage
+        run: npm run pack:linux -- --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stellar-pdf-appimage
+          path: dist/*.AppImage

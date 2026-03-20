@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src blob: file:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;">
+  <link rel="stylesheet" href="styles.css">
+  <title>Stellar PDF</title>
+</head>
+<body>
+  <!-- ── Toolbar ── -->
+  <div id="toolbar">
+    <div class="toolbar-group">
+      <button id="btn-open" class="toolbar-btn" title="Open PDF (Ctrl+O)">Open</button>
+      <button id="btn-save" class="toolbar-btn" title="Save (Ctrl+S)" disabled>Save</button>
+      <button id="btn-save-as" class="toolbar-btn" title="Save As (Ctrl+Shift+S)" disabled>Save As</button>
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-group tool-group" id="tool-group">
+      <button id="tool-select"  class="tool-btn active" title="Select / Pan">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3 1l10 6-5 1.5L6 14z"/>
+        </svg>
+      </button>
+      <button id="tool-fill" class="tool-btn" title="Fill Forms">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="4" width="12" height="3" rx="1"/>
+          <rect x="2" y="9" width="7" height="3" rx="1"/>
+        </svg>
+      </button>
+      <button id="tool-redact" class="tool-btn" title="Redact (draw to mark, then Apply)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="2" y="5" width="12" height="6" rx="1"/>
+        </svg>
+      </button>
+      <button id="tool-text" class="tool-btn" title="Insert Text">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <text x="3" y="13" font-family="serif" font-size="13" font-weight="bold">T</text>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Apply redactions button: shown only when pending redactions exist -->
+    <button id="btn-apply-redact" class="toolbar-btn danger hidden" title="Permanently apply all pending redactions">
+      Apply Redactions
+    </button>
+
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-group zoom-group">
+      <button id="btn-zoom-out" class="toolbar-btn icon-btn" title="Zoom Out">−</button>
+      <span id="zoom-label">150%</span>
+      <button id="btn-zoom-in" class="toolbar-btn icon-btn" title="Zoom In">+</button>
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-group nav-group">
+      <button id="btn-prev" class="toolbar-btn icon-btn" title="Previous Page" disabled>‹</button>
+      <span id="page-label">- / -</span>
+      <button id="btn-next" class="toolbar-btn icon-btn" title="Next Page" disabled>›</button>
+    </div>
+
+    <div id="status-msg" class="status-msg"></div>
+
+    <div class="donate-section">
+      <span class="donate-label">Support</span>
+      <div class="donate-buttons">
+        <a href="https://ko-fi.com/rom12two" target="_blank" class="donate-btn kofi">Ko-fi</a>
+        <button class="donate-btn btc" data-address="1N19qKsCEQW4afSbAbM6vtVUZvWZDgRWXF" title="Copy BTC address">BTC</button>
+        <button class="donate-btn eth" data-address="0x80D870e56AAF468545471f7Ac92AEbc493FBF6B1" title="Copy ETH address">ETH</button>
+        <button class="donate-btn xmr" data-address="49xjr7jRLswMrJ47SnvQsR8xvKM13gv1BiWxJM8JtxQhEfhwM64hXJFin5DvsUAp2QQ3dGzZFoCoa8HYe1oiJS1BBDQPP7C" title="Copy XMR address">XMR</button>
+        <span class="donate-status" id="donate-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Workspace ── -->
+  <div id="workspace">
+    <!-- Left sidebar: page thumbnails -->
+    <div id="sidebar">
+      <div id="thumbnail-list"></div>
+    </div>
+
+    <!-- Main scrollable area -->
+    <div id="main-view">
+      <div id="page-container">
+        <!-- Layer 1: PDF page rendered by PDF.js -->
+        <canvas id="pdf-canvas"></canvas>
+
+        <!-- Layer 2: HTML form field overlays -->
+        <div id="form-overlay"></div>
+
+        <!-- Layer 3: Redaction drawing canvas -->
+        <canvas id="redact-canvas"></canvas>
+
+        <!-- Layer 4: Text insertion overlay -->
+        <div id="text-overlay"></div>
+      </div>
+
+      <!-- Welcome screen shown before any PDF is opened -->
+      <div id="welcome">
+        <div class="welcome-inner">
+          <div class="welcome-icon">✦</div>
+          <h2>Stellar PDF</h2>
+          <p>Open a PDF to get started</p>
+          <button id="welcome-open-btn" class="welcome-btn">Open PDF</button>
+          <div class="welcome-features">
+            <span>✓ Fill Forms</span>
+            <span>✓ Redact Content</span>
+            <span>✓ Insert Text</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Donate modal ── -->
+  <div id="donate-modal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>Support PDF Editor</span>
+        <button id="donate-modal-close" class="modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Coin tabs -->
+        <div class="coin-tabs">
+          <button class="coin-tab active" data-coin="eth">ETH</button>
+          <button class="coin-tab" data-coin="btc">BTC</button>
+          <button class="coin-tab" data-coin="xmr">XMR</button>
+          <button class="coin-tab" data-coin="kofi">Ko-fi</button>
+        </div>
+
+        <!-- ETH panel -->
+        <div class="coin-panel" id="panel-eth">
+          <div class="amount-picker">
+            <button class="amount-btn" data-eth="0.005">$1</button>
+            <button class="amount-btn" data-eth="0.01">$2</button>
+            <button class="amount-btn" data-eth="0.05">$10</button>
+            <button class="amount-btn" data-eth="0.1">$20</button>
+          </div>
+          <div class="custom-amount-row">
+            <input id="eth-custom" type="number" class="custom-amount-input" placeholder="Custom ETH amount" step="0.001" min="0.001">
+          </div>
+          <button id="btn-metamask" class="metamask-btn">
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMTggMzE5Ij48cGF0aCBmaWxsPSIjRTI3NjFCIiBkPSJNMjc0LjEgMzUuNUw0Ni4xIDEyMC4zbDczLjcgMTQ3LjQgNTMuNS03Ni40IDEwNS42LTYuMi01NS44LTE1MHoiLz48cGF0aCBmaWxsPSIjRTQ3NjFCIiBkPSJNMjc0LjEgMzUuNWwtNTUuOCAxNTAgMTA1LjYgNi4yIDUzLjUtNzYuNC03My43LTE0Ny40ek00Ni4xIDEyMC4zTDI4LjYgMjgxLjlsMTM5LjQtMzguNS00MC40LTc3LjEtODEuNS00Ni0uMy0uMXoiLz48L3N2Zz4=" alt="" class="metamask-fox">
+            Pay with MetaMask
+          </button>
+          <div class="address-row">
+            <span class="address-label">ETH address</span>
+            <code class="address-text" id="eth-address">0x80D870e56AAF468545471f7Ac92AEbc493FBF6B1</code>
+            <button class="copy-btn" data-copy="eth-address">Copy</button>
+          </div>
+          <img id="qr-eth" class="qr-img">
+        </div>
+
+        <!-- BTC panel -->
+        <div class="coin-panel hidden" id="panel-btc">
+          <div class="address-row">
+            <span class="address-label">BTC address</span>
+            <code class="address-text" id="btc-address">1N19qKsCEQW4afSbAbM6vtVUZvWZDgRWXF</code>
+            <button class="copy-btn" data-copy="btc-address">Copy</button>
+          </div>
+          <img id="qr-btc" class="qr-img">
+        </div>
+
+        <!-- XMR panel -->
+        <div class="coin-panel hidden" id="panel-xmr">
+          <div class="address-row">
+            <span class="address-label">XMR address</span>
+            <code class="address-text xmr-addr" id="xmr-address">49xjr7jRLswMrJ47SnvQsR8xvKM13gv1BiWxJM8JtxQhEfhwM64hXJFin5DvsUAp2QQ3dGzZFoCoa8HYe1oiJS1BBDQPP7C</code>
+            <button class="copy-btn" data-copy="xmr-address">Copy</button>
+          </div>
+          <img id="qr-xmr" class="qr-img">
+        </div>
+
+        <!-- Ko-fi panel -->
+        <div class="coin-panel hidden" id="panel-kofi">
+          <p class="kofi-msg">Support via Ko-fi: pay with card or PayPal, no crypto needed.</p>
+          <button id="btn-kofi-open" class="metamask-btn kofi-open-btn">Open Ko-fi page</button>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <span id="modal-copy-status" class="modal-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
