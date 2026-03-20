@@ -29,7 +29,7 @@ async function launchInstalled() {
 
 async function openFixture(page) {
   await page.evaluate(async (p) => window.__testOpenFile(p), FIXTURE_PDF)
-  await page.waitForSelector('#welcome.hidden', { timeout: 10000 })
+  await page.waitForSelector('#welcome.hidden', { state: 'attached', timeout: 10000 })
   await page.waitForFunction(() => document.getElementById('page-label').textContent !== '— / —')
 }
 
