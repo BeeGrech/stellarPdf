@@ -458,6 +458,10 @@ document.querySelector('.donate-btn.kofi').addEventListener('click', (e) => {
   openDonateModal('kofi')
 })
 
+// ─── Test hook (Playwright) ───────────────────────────────────────────────────
+// Exposed only so UI tests can open a PDF without triggering the file dialog.
+window.__testOpenFile = openFile
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 setActiveTool('select')

@@ -4,3 +4,6 @@ python/venv/
 .pytest_cache/
 __pycache__/
 *.pyc
+node_modules/
+tests/ui/report/
+tests/ui/test-results/
