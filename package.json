@@ -1,6 +1,6 @@
 {
   "name": "stellar-pdf",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Stellar PDF: beautiful Linux PDF editor with form filling and redaction",
   "author": "bgrech",
   "main": "main.js",
