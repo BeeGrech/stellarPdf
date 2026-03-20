@@ -494,6 +494,9 @@ function activateDetectedField(field) {
         text,
         fontsize: field.fontsize,
         color: [0, 0, 0],
+        // Clear only the text line band around the baseline, from insertion x rightward.
+        // This avoids erasing label text that may sit above or at the top of the field rect.
+        clear_rect: [pdfX, field.pdfBaseline - field.fontsize * 1.2, field.pdfRect[2], field.pdfBaseline + field.fontsize * 0.4],
       })
       if (textInsertCallback) await textInsertCallback()
     } catch (err) {

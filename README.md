@@ -33,6 +33,18 @@ A beautiful, open-source PDF editor for Linux. Fill forms, redact content, and i
 - Node.js 18+
 - Python 3.10+
 
+## Python tests and lint
+
+From the repository root (use a venv that has dependencies installed):
+
+```bash
+./python/venv/bin/pip install -r python/requirements-dev.txt
+npm run test:python
+npm run lint:python
+```
+
+`pytest` uses `pytest.ini` (tests live under `python/tests/`). `pylint` reads `.pylintrc` and checks `python/pdf_server.py`.
+
 ## Installation
 
 ```bash
@@ -51,6 +63,10 @@ python3 -m venv python/venv
 npm start
 ```
 
+## Prebuilt Linux AppImage
+
+Binaries are **not** stored in git (`dist/` is ignored). GitHub Actions builds an AppImage on a **daily schedule** (only when the default branch has new commits since the last `nightly` build), on **manual workflow dispatch** (always), and when you push a **`v*` version tag**. Grab the file from the repo [Releases](https://github.com/BeeGrech/stellarPdf/releases) page: the rolling prerelease **Nightly (Linux AppImage)** (tag `nightly`), or the release matching your `v*` tag.
+
 ## Keyboard Shortcuts
 
 | Key | Action |
@@ -61,6 +77,24 @@ npm start
 | `←` / `→` | Previous / Next page |
 | `+` / `-` | Zoom in / out |
 | `Ctrl+Shift+I` | Toggle DevTools |
+
+## Support the project
+
+If Stellar PDF is useful to you, contributions help keep it maintained.
+
+**Cryptocurrency**
+
+| Asset | Address |
+|-------|---------|
+| **Ethereum (ETH)** | `0x80D870e56AAF468545471f7Ac92AEbc493FBF6B1` |
+| **Bitcoin (BTC)** | `1N19qKsCEQW4afSbAbM6vtVUZvWZDgRWXF` |
+| **Monero (XMR)** | `49xjr7jRLswMrJ47SnvQsR8xvKM13gv1BiWxJM8JtxQhEfhwM64hXJFin5DvsUAp2QQ3dGzZFoCoa8HYe1oiJS1BBDQPP7C` |
+
+The desktop app also includes a **Support** flow with QR codes and a MetaMask-friendly ETH link.
+
+**Card / PayPal:** [Ko-fi](https://ko-fi.com/rom12two) (no crypto required).
+
+Code contributions and issues are welcome on GitHub as well.
 
 ## License
 

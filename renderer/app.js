@@ -296,6 +296,16 @@ document.addEventListener('keydown', async (e) => {
   if (e.ctrlKey && e.key === 'o') { e.preventDefault(); btnOpen.click() }
   if (e.ctrlKey && e.shiftKey && e.key === 'S') { e.preventDefault(); saveFileAs() }
   if (e.ctrlKey && !e.shiftKey && e.key === 's') { e.preventDefault(); saveFile() }
+  if (e.ctrlKey && e.key === 'z' && currentFilePath) {
+    e.preventDefault()
+    const result = await window.electronAPI.pyCall('undo', {})
+    if (result.ok) {
+      await reloadAfterMutation()
+      setStatus(result.remaining > 0 ? `Undo — ${result.remaining} more available` : 'Undo — no more history')
+    } else {
+      setStatus('Nothing to undo')
+    }
+  }
   if (e.key === 'ArrowLeft'  && currentPage > 1)         { await doRenderPage(currentPage - 1) }
   if (e.key === 'ArrowRight' && currentPage < pageCount) { await doRenderPage(currentPage + 1) }
   if (e.key === '+' || e.key === '=') { btnZoomIn.click() }

@@ -1,0 +1,43 @@
+[MAIN]
+py-version = 3.10
+ignore-paths = ^python/venv/,
+    ^python/tests/,
+
+[MESSAGES CONTROL]
+# pdf_server is a long RPC script: globals, many branches, and I/O are intentional.
+disable =
+    duplicate-code,
+    fixme,
+    invalid-name,
+    missing-class-docstring,
+    missing-function-docstring,
+    missing-module-docstring,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-branches,
+    too-many-locals,
+    too-many-lines,
+    too-many-nested-blocks,
+    too-many-return-statements,
+    too-many-statements,
+    global-statement,
+    broad-except,
+    import-outside-toplevel,
+
+[FORMAT]
+max-line-length = 120
+
+[BASIC]
+good-names = i,j,k,ex,Run,_,doc,df,ft
+
+[DESIGN]
+max-args = 12
+max-locals = 25
+max-returns = 12
+max-branches = 25
+max-statements = 80
+
+[TYPECHECK]
+# PyMuPDF (fitz) exposes many symbols at runtime that static analysis does not see.
+extension-pkg-allow-list = pymupdf
+generated-members = fitz.PDF_WIDGET_TYPE_TEXT,fitz.PDF_WIDGET_TYPE_CHECKBOX,fitz.PDF_WIDGET_TYPE_RADIOBUTTON,fitz.PDF_WIDGET_TYPE_LISTBOX,fitz.PDF_WIDGET_TYPE_COMBOBOX

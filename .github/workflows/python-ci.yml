@@ -1,0 +1,35 @@
+name: Python CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "python/**"
+      - "pytest.ini"
+      - ".pylintrc"
+      - ".github/workflows/python-ci.yml"
+  pull_request:
+    paths:
+      - "python/**"
+      - "pytest.ini"
+      - ".pylintrc"
+      - ".github/workflows/python-ci.yml"
+
+jobs:
+  test-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: pip install -r python/requirements-dev.txt
+
+      - name: Pytest
+        run: python -m pytest
+
+      - name: Pylint
+        run: python -m pylint python/pdf_server.py

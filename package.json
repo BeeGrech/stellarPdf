@@ -6,7 +6,9 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "pack:linux": "electron-builder --linux"
+    "pack:linux": "electron-builder --linux",
+    "test:python": "python3 -m pytest",
+    "lint:python": "python3 -m pylint python/pdf_server.py"
   },
   "dependencies": {
     "pdfjs-dist": "^4.4.168",

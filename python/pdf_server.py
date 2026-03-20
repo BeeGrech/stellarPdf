@@ -10,6 +10,8 @@ import sys
 import json
 import re
 import traceback
+import os
+import tempfile
 import fitz  # PyMuPDF
 
 # Global state
@@ -17,6 +19,15 @@ doc = None
 original_path = None
 pending_redactions = {}  # page_index (int) -> list of {"id": str, "rect": [x0,y0,x1,y1]}
 redaction_counter = 0
+undo_stack = []  # list of bytes snapshots, newest last
+MAX_UNDO = 20
+
+
+def _snapshot():
+    """Push current doc state onto undo stack before a mutation."""
+    undo_stack.append(doc.tobytes())
+    if len(undo_stack) > MAX_UNDO:
+        undo_stack.pop(0)
 
 
 def _xref_refs(raw):
@@ -24,10 +35,11 @@ def _xref_refs(raw):
     return [int(m) for m in re.findall(r'(\d+) 0 R', raw or "")]
 
 
-def _xkey(xref, key):
+def _xkey(xref, key, pdf_doc=None):
     """Get a key from an xref dict; returns None if null/missing."""
+    target = pdf_doc if pdf_doc is not None else doc
     try:
-        v = doc.xref_get_key(xref, key)
+        v = target.xref_get_key(xref, key)
         if v and v[0] not in ("null", "none"):
             return v
     except Exception:
@@ -35,7 +47,7 @@ def _xkey(xref, key):
     return None
 
 
-def _collect_widget_xrefs_from_acroform(doc):
+def _collect_widget_xrefs_from_acroform(pdf_doc):
     """
     Collect all Widget annotation xrefs. Two strategies:
     1. Walk AcroForm /Fields tree (fast, follows field hierarchy)
@@ -46,19 +58,19 @@ def _collect_widget_xrefs_from_acroform(doc):
 
     # Strategy 1: Walk AcroForm /Fields tree
     try:
-        cat = doc.pdf_catalog()
-        af_fields = _xkey(cat, "AcroForm/Fields")
+        cat = pdf_doc.pdf_catalog()
+        af_fields = _xkey(cat, "AcroForm/Fields", pdf_doc)
         if af_fields:
             def walk(xref, depth=0):
                 if depth > 30:
                     return
-                kids = _xkey(xref, "Kids")
+                kids = _xkey(xref, "Kids", pdf_doc)
                 if kids:
                     for kid_xref in _xref_refs(kids[1]):
                         walk(kid_xref, depth + 1)
                 else:
-                    subtype = _xkey(xref, "Subtype")
-                    ft = _xkey(xref, "FT")
+                    subtype = _xkey(xref, "Subtype", pdf_doc)
+                    ft = _xkey(xref, "FT", pdf_doc)
                     # Include if it's a Widget or has a field type
                     if (subtype and "Widget" in subtype[1]) or ft:
                         found.add(xref)
@@ -70,9 +82,9 @@ def _collect_widget_xrefs_from_acroform(doc):
 
     # Strategy 2: Brute-force scan all xrefs for /Subtype /Widget
     try:
-        for xref in range(1, doc.xref_length()):
+        for xref in range(1, pdf_doc.xref_length()):
             try:
-                subtype = doc.xref_get_key(xref, "Subtype")
+                subtype = pdf_doc.xref_get_key(xref, "Subtype")
                 if subtype and subtype[0] == "name" and subtype[1] == "/Widget":
                     found.add(xref)
             except Exception:
@@ -84,7 +96,7 @@ def _collect_widget_xrefs_from_acroform(doc):
     return list(found)
 
 
-def repair_orphaned_widgets(doc):
+def repair_orphaned_widgets(pdf_doc):
     """
     Some PDF generators populate AcroForm/Fields correctly but forget to add
     Widget annotations to the page's /Annots array, so page.widgets() finds
@@ -100,17 +112,17 @@ def repair_orphaned_widgets(doc):
           ignore widgets outside the page rect, so this is safe)
     """
     try:
-        widget_xrefs = _collect_widget_xrefs_from_acroform(doc)
+        widget_xrefs = _collect_widget_xrefs_from_acroform(pdf_doc)
         if not widget_xrefs:
             return 0
 
         # Build map: page_xref → (page_index, set of xrefs in /Annots)
         page_annots = {}  # page_index → set of xrefs
         page_xref_to_index = {}
-        for i in range(len(doc)):
-            px = doc.page_xref(i)
+        for i in range(len(pdf_doc)):
+            px = pdf_doc.page_xref(i)
             page_xref_to_index[px] = i
-            annots_raw = _xkey(px, "Annots")
+            annots_raw = _xkey(px, "Annots", pdf_doc)
             page_annots[i] = set(_xref_refs(annots_raw[1] if annots_raw else ""))
 
         repaired = 0
@@ -122,7 +134,7 @@ def repair_orphaned_widgets(doc):
 
             # Determine target page(s)
             target_pages = []
-            p_ref = _xkey(xref, "P")
+            p_ref = _xkey(xref, "P", pdf_doc)
             if p_ref:
                 m = re.search(r'(\d+) 0 R', p_ref[1])
                 if m:
@@ -132,13 +144,13 @@ def repair_orphaned_widgets(doc):
 
             if not target_pages:
                 # No /P reference: add to page 0 (single page) or all pages
-                target_pages = [0] if len(doc) == 1 else list(range(len(doc)))
+                target_pages = [0] if len(pdf_doc) == 1 else list(range(len(pdf_doc)))
 
             for page_index in target_pages:
                 existing = page_annots[page_index]
                 new_set = sorted(existing | {xref})
                 annots_str = "[" + " ".join(f"{x} 0 R" for x in new_set) + "]"
-                doc.xref_set_key(doc.page_xref(page_index), "Annots", annots_str)
+                pdf_doc.xref_set_key(pdf_doc.page_xref(page_index), "Annots", annots_str)
                 page_annots[page_index] = set(new_set)
                 print(f"  Repaired: widget xref {xref} → page {page_index}",
                       file=sys.stderr, flush=True)
@@ -170,7 +182,8 @@ def handle_open(params):
         doc.close()
         doc = fitz.open("pdf", buf)
 
-    title = doc.metadata.get("title", "") or ""
+    md = getattr(doc, "metadata", None) or {}
+    title = (md.get("title", "") if isinstance(md, dict) else "") or ""
     widget_total = sum(len(list(doc[i].widgets())) for i in range(len(doc)))
     print(f"Opened: {len(doc)} pages, {widget_total} total widgets after repair", file=sys.stderr, flush=True)
     return {"page_count": len(doc), "title": title, "repaired_widgets": repaired}
@@ -273,7 +286,7 @@ def handle_get_click_context(params):
     baseline Y and the font size of nearby text.
     """
     page_index = params["page_index"]
-    x = params["x"]
+    _ = params["x"]
     y = params["y"]
     page = doc[page_index]
 
@@ -308,7 +321,7 @@ def handle_get_click_context(params):
     return {"fontsize": best_fontsize, "baseline_y": best_baseline_y}
 
 
-def handle_diagnose(params):
+def handle_diagnose(_params):
     """Diagnostic: return raw info about what PyMuPDF sees in the current PDF."""
     if not doc:
         return {"error": "No document open"}
@@ -328,8 +341,7 @@ def handle_diagnose(params):
     except Exception as e:
         result["acroform_error"] = str(e)
 
-    for page_index in range(len(doc)):
-        page = doc[page_index]
+    for page_index, page in enumerate(doc):
         raw_widgets = []
         for w in page.widgets():
             raw_widgets.append({
@@ -410,6 +422,7 @@ def handle_get_fields(params):
 
 
 def handle_fill_form(params):
+    _snapshot()
     page_index = params["page_index"]
     fields_to_fill = {f["name"]: f["value"] for f in params["fields"]}
     page = doc[page_index]
@@ -469,7 +482,8 @@ def handle_remove_redaction(params):
     return {"ok": True}
 
 
-def handle_apply_redactions(params):
+def handle_apply_redactions(_params):
+    _snapshot()
     pages_affected = []
     for page_index, rects in pending_redactions.items():
         if not rects:
@@ -477,7 +491,7 @@ def handle_apply_redactions(params):
         page = doc[page_index]
         for entry in rects:
             r = entry["rect"]
-            annot = page.add_redact_annot(fitz.Rect(r[0], r[1], r[2], r[3]), fill=(0, 0, 0))
+            page.add_redact_annot(fitz.Rect(r[0], r[1], r[2], r[3]), fill=(0, 0, 0))
         page.apply_redactions()
         pages_affected.append(page_index)
     pending_redactions.clear()
@@ -485,6 +499,7 @@ def handle_apply_redactions(params):
 
 
 def handle_insert_text(params):
+    _snapshot()
     page_index = params["page_index"]
     x = params["x"]
     y = params["y"]
@@ -492,8 +507,15 @@ def handle_insert_text(params):
     fontsize = params.get("fontsize", 12)
     color_raw = params.get("color", [0, 0, 0])
     color = tuple(c / 255.0 if c > 1 else c for c in color_raw)
+    clear_rect = params.get("clear_rect")
 
     page = doc[page_index]
+
+    if clear_rect:
+        # White-out the field area so previous text doesn't show through
+        r = fitz.Rect(clear_rect[0], clear_rect[1], clear_rect[2], clear_rect[3])
+        page.draw_rect(r, color=None, fill=(1, 1, 1), overlay=True)
+
     page.insert_text(
         fitz.Point(x, y),
         text,
@@ -505,22 +527,45 @@ def handle_insert_text(params):
 
 
 def handle_save(params):
+    global doc
     path = params["path"]
-    if path == original_path:
-        doc.save(path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
-    else:
-        doc.save(path)
+    # PyMuPDF cannot do a full save to the same file it has open.
+    # Save to a temp file alongside the target, then atomically replace.
+    dir_ = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(dir=dir_, suffix=".pdf")
+    os.close(fd)
+    try:
+        doc.save(tmp, deflate=True)
+        doc.close()
+        os.replace(tmp, path)
+        doc = fitz.open(path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     return {"ok": True}
+
+
+def handle_undo(_params):
+    global doc
+    if not undo_stack:
+        return {"ok": False, "reason": "nothing to undo"}
+    buf = undo_stack.pop()
+    doc.close()
+    doc = fitz.open("pdf", buf)
+    return {"ok": True, "remaining": len(undo_stack)}
 
 
 def _widget_type_str(t):
     if t == fitz.PDF_WIDGET_TYPE_TEXT:
         return "text"
-    elif t == fitz.PDF_WIDGET_TYPE_CHECKBOX:
+    if t == fitz.PDF_WIDGET_TYPE_CHECKBOX:
         return "checkbox"
-    elif t == fitz.PDF_WIDGET_TYPE_RADIOBUTTON:
+    if t == fitz.PDF_WIDGET_TYPE_RADIOBUTTON:
         return "radio"
-    elif t in (fitz.PDF_WIDGET_TYPE_LISTBOX, fitz.PDF_WIDGET_TYPE_COMBOBOX):
+    if t in (fitz.PDF_WIDGET_TYPE_LISTBOX, fitz.PDF_WIDGET_TYPE_COMBOBOX):
         return "select"
     return "unknown"
 
@@ -537,6 +582,7 @@ HANDLERS = {
     "remove_redaction": handle_remove_redaction,
     "apply_redactions": handle_apply_redactions,
     "insert_text": handle_insert_text,
+    "undo": handle_undo,
     "save": handle_save,
 }
 
