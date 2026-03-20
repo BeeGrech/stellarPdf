@@ -4,14 +4,19 @@
  */
 const { test, expect } = require('@playwright/test')
 const { launchApp, openFixture, FIXTURE_PDF } = require('./helpers/electron')
+const { execFileSync } = require('child_process')
 const path = require('path')
 const os = require('os')
 const fs = require('fs')
+
+const ROOT = path.resolve(__dirname, '../..')
+const PYTHON = path.join(ROOT, 'python/venv/bin/python3')
 
 let electronApp, page
 
 test.beforeEach(async () => {
   ;({ electronApp, page } = await launchApp())
+  page.on('dialog', dialog => dialog.type() === 'confirm' ? dialog.accept() : dialog.dismiss())
 })
 
 test.afterEach(async () => {
@@ -66,9 +71,9 @@ test('applying redaction removes target text from PDF', async () => {
   const canvas = page.locator('#redact-canvas')
   const box = await canvas.boundingBox()
 
-  await page.mouse.move(box.x + 20, box.y + 140)
+  await page.mouse.move(box.x + 20, box.y + 330)
   await page.mouse.down()
-  await page.mouse.move(box.x + 500, box.y + 180)
+  await page.mouse.move(box.x + 500, box.y + 395)
   await page.mouse.up()
 
   await page.click('#btn-apply-redact')
@@ -80,18 +85,10 @@ test('applying redaction removes target text from PDF', async () => {
   )
 
   // Verify the target text is gone from the saved PDF
-  const textFound = await electronApp.evaluate(async ({}, filePath) => {
-    const { execFileSync } = require('child_process')
-    const pythonBin = require('path').join(process.cwd(), 'python/venv/bin/python3')
-    const out = execFileSync(pythonBin, ['-c', `
-import fitz
-doc = fitz.open(r"${filePath}")
-text = doc[1].get_text()
-print("FOUND" if "secret-value-1234" in text else "REMOVED")
-`]).toString().trim()
-    return out
-  }, tmp)
-
-  expect(textFound).toBe('REMOVED')
+  const out = execFileSync(PYTHON, ['-c',
+    `import fitz; doc = fitz.open(r"${tmp}"); ` +
+    `print("FOUND" if "secret-value-1234" in doc[1].get_text() else "REMOVED")`
+  ]).toString().trim()
+  expect(out).toBe('REMOVED')
   fs.unlinkSync(tmp)
 })

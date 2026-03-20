@@ -5,14 +5,19 @@
  */
 const { test, expect } = require('@playwright/test')
 const { launchApp, openFixture, FIXTURE_PDF } = require('./helpers/electron')
+const { execFileSync } = require('child_process')
 const path = require('path')
 const os = require('os')
 const fs = require('fs')
+
+const ROOT = path.resolve(__dirname, '../..')
+const PYTHON = path.join(ROOT, 'python/venv/bin/python3')
 
 let electronApp, page
 
 test.beforeEach(async () => {
   ;({ electronApp, page } = await launchApp())
+  page.on('dialog', dialog => dialog.type() === 'confirm' ? dialog.accept() : dialog.dismiss())
 })
 
 test.afterEach(async () => {
@@ -55,19 +60,12 @@ test('save persists form field value to PDF', async () => {
     { timeout: 8000 }
   )
 
-  // Verify via Python that the value is in the saved PDF
-  const result = await electronApp.evaluate(async ({ app }, filePath) => {
-    const { execFileSync } = require('child_process')
-    const pythonBin = require('path').join(__dirname, '../python/venv/bin/python3')
-    const out = execFileSync(pythonBin, ['-c', `
-import fitz, json
-doc = fitz.open(r"${filePath}")
-fields = {w.field_name: w.field_value for w in doc[0].widgets()}
-print(json.dumps(fields))
-`]).toString()
-    return JSON.parse(out)
-  }, tmp)
-
-  expect(result['full_name']).toBe('Test User')
+  // Verify via Python directly from the test process
+  const out = execFileSync(PYTHON, ['-c',
+    `import fitz, json; doc = fitz.open(r"${tmp}"); ` +
+    `print(json.dumps({w.field_name: w.field_value for w in doc[0].widgets()}))`
+  ]).toString()
+  const fields = JSON.parse(out)
+  expect(fields['full_name']).toBe('Test User')
   fs.unlinkSync(tmp)
 })

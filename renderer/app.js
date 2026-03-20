@@ -301,7 +301,7 @@ document.addEventListener('keydown', async (e) => {
     const result = await window.electronAPI.pyCall('undo', {})
     if (result.ok) {
       await reloadAfterMutation()
-      setStatus(result.remaining > 0 ? `Undo — ${result.remaining} more available` : 'Undo — no more history')
+      setStatus(result.remaining > 0 ? `Saved — undo: ${result.remaining} more available` : 'Saved — undo applied')
     } else {
       setStatus('Nothing to undo')
     }

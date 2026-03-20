@@ -26,7 +26,7 @@ const ctx = canvas.getContext('2d')
 
 export async function loadPdf(arrayBuffer) {
   if (pdfDoc) {
-    pdfDoc.destroy()
+    await pdfDoc.destroy()
     pdfDoc = null
   }
   pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
