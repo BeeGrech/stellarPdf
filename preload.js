@@ -22,4 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Generate QR code data URL (done in main process to avoid CJS/ESM issues)
   generateQR: (text) => ipcRenderer.invoke('qr:generate', text),
+
+  // Menu event listeners (main → renderer)
+  onMenu: (channel, fn) => ipcRenderer.on(channel, fn),
 })

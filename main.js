@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron')
 
 // Graceful fallback for environments without GPU acceleration
 app.commandLine.appendSwitch('disable-gpu-sandbox')
@@ -172,10 +172,104 @@ ipcMain.handle('qr:generate', async (_event, text) => {
   return QRCode.toDataURL(text, { width: 160, margin: 1, color: { dark: '#000', light: '#fff' } })
 })
 
+// ─── Application menu ─────────────────────────────────────────────────────────
+
+function buildMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => win.webContents.send('menu:open') },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => win.webContents.send('menu:save') },
+        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => win.webContents.send('menu:save-as') },
+        { type: 'separator' },
+        { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: () => win.webContents.send('menu:undo') },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', click: () => win.webContents.send('menu:zoom-in') },
+        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: () => win.webContents.send('menu:zoom-out') },
+        { type: 'separator' },
+        { label: 'Toggle Developer Tools', accelerator: 'CmdOrCtrl+Shift+I', click: () => win.webContents.toggleDevTools() },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Keyboard Shortcuts',
+          click: () => {
+            dialog.showMessageBox(win, {
+              type: 'info',
+              title: 'Keyboard Shortcuts',
+              message: 'Stellar PDF — Keyboard Shortcuts',
+              detail: [
+                'FILE',
+                '  Ctrl+O          Open PDF',
+                '  Ctrl+S          Save',
+                '  Ctrl+Shift+S    Save As',
+                '',
+                'EDIT',
+                '  Ctrl+Z          Undo last change',
+                '',
+                'NAVIGATION',
+                '  ← / →           Previous / Next page',
+                '  Ctrl+= / Ctrl+-  Zoom in / out',
+                '',
+                'TOOLS',
+                '  Select tool     Pan and scroll',
+                '  Fill tool       Fill AcroForm fields',
+                '  Redact tool     Draw redaction boxes, then Apply',
+                '  Text tool       Click to insert text (snaps to baseline)',
+                '',
+                'DEV',
+                '  Ctrl+Shift+I    Toggle DevTools',
+              ].join('\n'),
+              buttons: ['OK'],
+            })
+          },
+        },
+        {
+          label: 'About Stellar PDF',
+          click: () => {
+            dialog.showMessageBox(win, {
+              type: 'info',
+              title: 'About Stellar PDF',
+              message: 'Stellar PDF',
+              detail: `Version ${app.getVersion()}\n\nA beautiful open-source PDF editor for Linux.\nFill forms, redact content, insert text.\n\nhttps://github.com/BeeGrech/stellarPdf`,
+              buttons: ['OK'],
+            })
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'View on GitHub',
+          click: () => shell.openExternal('https://github.com/BeeGrech/stellarPdf'),
+        },
+        {
+          label: 'Report an Issue',
+          click: () => shell.openExternal('https://github.com/BeeGrech/stellarPdf/issues'),
+        },
+      ],
+    },
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   startPython()
+  buildMenu()
   createWindow()
 })
 

@@ -22,8 +22,8 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.thoughtbanger.stellarpdf",
-    "productName": "Stellar PDF",
+    "appId": "com.stellarpdf.app",
+    "productName": "StellarPDF",
     "directories": {
       "output": "dist"
     },

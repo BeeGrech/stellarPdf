@@ -462,6 +462,15 @@ document.querySelector('.donate-btn.kofi').addEventListener('click', (e) => {
 // Exposed only so UI tests can open a PDF without triggering the file dialog.
 window.__testOpenFile = openFile
 
+// ─── Native menu wiring ───────────────────────────────────────────────────────
+
+window.electronAPI.onMenu('menu:open',    () => btnOpen.click())
+window.electronAPI.onMenu('menu:save',    () => saveFile())
+window.electronAPI.onMenu('menu:save-as', () => saveFileAs())
+window.electronAPI.onMenu('menu:undo',    () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })))
+window.electronAPI.onMenu('menu:zoom-in', () => btnZoomIn.click())
+window.electronAPI.onMenu('menu:zoom-out',() => btnZoomOut.click())
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 setActiveTool('select')
