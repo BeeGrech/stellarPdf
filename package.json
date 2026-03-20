@@ -38,10 +38,12 @@
     ],
     "linux": {
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb",
+        "rpm"
       ],
       "category": "Office",
-      "maintainer": "bgrech"
+      "maintainer": "brian grech <87876720+BeeGrech@users.noreply.github.com>"
     }
   }
 }
