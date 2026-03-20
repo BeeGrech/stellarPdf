@@ -1,0 +1,176 @@
+name: Package Installation Tests
+
+on:
+  workflow_run:
+    workflows: ["Linux Packages"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "linux-appimage workflow run ID to download artifacts from"
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  # ── Resolve the artifact run ID ──────────────────────────────────────────────
+  resolve:
+    runs-on: ubuntu-22.04
+    outputs:
+      run_id: ${{ steps.pick.outputs.run_id }}
+      skip: ${{ steps.pick.outputs.skip }}
+    steps:
+      - id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_id=${{ inputs.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+            echo "run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream build did not succeed — skipping package tests."
+          fi
+
+  # ── AppImage ─────────────────────────────────────────────────────────────────
+  test-appimage:
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install system deps
+        run: |
+          sudo apt-get install -y xvfb libgtk-3-0 libgbm-dev libnss3 libasound2 fuse libfuse2
+
+      - name: Install Playwright
+        run: npx playwright install chromium --with-deps
+
+      - name: Download AppImage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: stellar-pdf-linux-packages
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: packages/
+
+      - name: Extract AppImage
+        run: |
+          APPIMAGE=$(ls packages/*.AppImage | head -1)
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract
+          echo "STELLAR_BINARY_PATH=$(pwd)/squashfs-root/stellar-pdf" >> "$GITHUB_ENV"
+
+      - name: Run installed smoke tests (AppImage)
+        run: xvfb-run --auto-servernum npm run test:ui:installed
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: appimage-test-report
+          path: tests/ui/report-installed/
+
+  # ── Debian package ───────────────────────────────────────────────────────────
+  test-deb:
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install chromium --with-deps
+
+      - name: Download deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: stellar-pdf-linux-packages
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: packages/
+
+      - name: Install deb package
+        run: |
+          sudo dpkg -i packages/*.deb || true
+          sudo apt-get install -f -y
+
+      - name: Set binary path
+        run: echo "STELLAR_BINARY_PATH=/opt/StellarPDF/stellar-pdf" >> "$GITHUB_ENV"
+
+      - name: Run installed smoke tests (deb)
+        run: |
+          sudo apt-get install -y xvfb libgtk-3-0 libgbm-dev libnss3 libasound2
+          xvfb-run --auto-servernum npm run test:ui:installed
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: deb-test-report
+          path: tests/ui/report-installed/
+
+  # ── RPM package (Fedora container) ───────────────────────────────────────────
+  test-rpm:
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-22.04
+    container:
+      image: fedora:40
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          dnf install -y nodejs npm xorg-x11-server-Xvfb gtk3 libnotify nss \
+            libXScrnSaver libXtst xdg-utils at-spi2-core libuuid alsa-lib \
+            libgbm mesa-libgbm nss libdrm wget curl
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install chromium --with-deps
+
+      - name: Download rpm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: stellar-pdf-linux-packages
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: packages/
+
+      - name: Install rpm package
+        run: dnf install -y packages/*.rpm
+
+      - name: Set binary path
+        run: echo "STELLAR_BINARY_PATH=/opt/StellarPDF/stellar-pdf" >> "$GITHUB_ENV"
+
+      - name: Run installed smoke tests (rpm)
+        run: xvfb-run --auto-servernum npm run test:ui:installed
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: rpm-test-report
+          path: tests/ui/report-installed/

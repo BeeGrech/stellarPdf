@@ -7,3 +7,4 @@ __pycache__/
 node_modules/
 tests/ui/report/
 tests/ui/test-results/
+tests/ui/report-installed/

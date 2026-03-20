@@ -10,7 +10,8 @@
     "test:python": "python3 -m pytest",
     "lint:python": "python3 -m pylint python/pdf_server.py",
     "test:ui": "playwright test",
-    "test:ui:report": "playwright show-report tests/ui/report"
+    "test:ui:report": "playwright show-report tests/ui/report",
+    "test:ui:installed": "playwright test --config playwright.installed.config.js"
   },
   "dependencies": {
     "pdfjs-dist": "^4.4.168",

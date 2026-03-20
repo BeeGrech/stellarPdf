@@ -11,11 +11,26 @@ async function launchApp() {
   return { electronApp, page }
 }
 
+/**
+ * Launch an installed binary (AppImage extracted, deb, or rpm).
+ * Set STELLAR_BINARY_PATH to the electron binary path before calling.
+ */
+async function launchInstalled() {
+  const binaryPath = process.env.STELLAR_BINARY_PATH
+  if (!binaryPath) throw new Error('STELLAR_BINARY_PATH not set')
+  const electronApp = await electron.launch({
+    executablePath: binaryPath,
+    args: ['--no-sandbox', '--disable-gpu'],
+  })
+  const page = await electronApp.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  return { electronApp, page }
+}
+
 async function openFixture(page) {
   await page.evaluate(async (p) => window.__testOpenFile(p), FIXTURE_PDF)
   await page.waitForSelector('#welcome.hidden', { timeout: 10000 })
-  // Wait for first page to render
   await page.waitForFunction(() => document.getElementById('page-label').textContent !== '— / —')
 }
 
-module.exports = { launchApp, openFixture, FIXTURE_PDF }
+module.exports = { launchApp, launchInstalled, openFixture, FIXTURE_PDF }
