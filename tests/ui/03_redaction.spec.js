@@ -54,7 +54,7 @@ test('applying redaction removes target text from PDF', async () => {
   fs.copyFileSync(FIXTURE_PDF, tmp)
 
   await page.evaluate(async (p) => window.__testOpenFile(p), tmp)
-  await page.waitForSelector('#welcome.hidden', { timeout: 10000 })
+  await page.waitForSelector('#welcome.hidden', { state: 'attached', timeout: 10000 })
 
   await page.click('#btn-next')
   await page.waitForFunction(() =>

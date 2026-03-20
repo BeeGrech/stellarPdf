@@ -22,12 +22,12 @@ test('undo reverts form field fill', async () => {
   fs.copyFileSync(FIXTURE_PDF, tmp)
 
   await page.evaluate(async (p) => window.__testOpenFile(p), tmp)
-  await page.waitForSelector('#welcome.hidden', { timeout: 10000 })
+  await page.waitForSelector('#welcome.hidden', { state: 'attached', timeout: 10000 })
 
   // Fill a field
   await page.click('#tool-fill')
-  await page.waitForSelector('.form-field-overlay[data-field-name="full_name"]', { timeout: 8000 })
-  await page.fill('.form-field-overlay[data-field-name="full_name"]', 'Before Undo')
+  await page.waitForSelector('.form-field-overlay[data-field-name="full_name"] input', { timeout: 8000 })
+  await page.fill('.form-field-overlay[data-field-name="full_name"] input', 'Before Undo')
   await page.keyboard.press('Control+s')
   await page.waitForFunction(
     () => document.getElementById('status-msg').textContent === 'Saved',

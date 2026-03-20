@@ -31,9 +31,9 @@ test('fill tool loads form fields on page 1', async () => {
 test('text field overlay accepts input', async () => {
   await openFixture(page)
   await page.click('#tool-fill')
-  await page.waitForSelector('.form-field-overlay[data-field-name="full_name"]', { timeout: 8000 })
-  await page.fill('.form-field-overlay[data-field-name="full_name"]', 'Jane Doe')
-  const val = await page.inputValue('.form-field-overlay[data-field-name="full_name"]')
+  await page.waitForSelector('.form-field-overlay[data-field-name="full_name"] input', { timeout: 8000 })
+  await page.fill('.form-field-overlay[data-field-name="full_name"] input', 'Jane Doe')
+  const val = await page.inputValue('.form-field-overlay[data-field-name="full_name"] input')
   expect(val).toBe('Jane Doe')
 })
 
@@ -43,11 +43,11 @@ test('save persists form field value to PDF', async () => {
   fs.copyFileSync(FIXTURE_PDF, tmp)
 
   await page.evaluate(async (p) => window.__testOpenFile(p), tmp)
-  await page.waitForSelector('#welcome.hidden', { timeout: 10000 })
+  await page.waitForSelector('#welcome.hidden', { state: 'attached', timeout: 10000 })
 
   await page.click('#tool-fill')
-  await page.waitForSelector('.form-field-overlay[data-field-name="full_name"]', { timeout: 8000 })
-  await page.fill('.form-field-overlay[data-field-name="full_name"]', 'Test User')
+  await page.waitForSelector('.form-field-overlay[data-field-name="full_name"] input', { timeout: 8000 })
+  await page.fill('.form-field-overlay[data-field-name="full_name"] input', 'Test User')
 
   await page.keyboard.press('Control+s')
   await page.waitForFunction(
