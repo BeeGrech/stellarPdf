@@ -158,7 +158,8 @@ jobs:
           artifacts: "dist/*.AppImage,dist/*.deb,dist/*.rpm"
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          name: Stellar PDF ${{ github.ref_name }}
+          bodyFile: .github/release-notes/${{ github.ref_name }}.md
           allowUpdates: true
           replacesArtifacts: true
           skipIfReleaseExists: false
