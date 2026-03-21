@@ -205,6 +205,37 @@ class TestHandleRedaction:
         assert "secret-value-1234" not in text
 
 
+class TestRedactionSecurity:
+    """Verify redaction burns content out of the document, not just covers it."""
+
+    def test_text_gone_from_memory_after_apply(self):
+        # In-memory check: get_text() must not return the secret after apply_redactions()
+        handle_add_redaction({"page_index": 1, "rect": [40, 237, 560, 265]})
+        handle_apply_redactions({})
+        text = pdf_server.doc[1].get_text()
+        assert "secret-value-1234" not in text
+
+    def test_raw_bytes_scrubbed_after_save(self, tmp_path):
+        # Binary scan: the secret must not appear as plaintext bytes in the saved file.
+        # An annotation-only "redaction" (no content removal) leaves the original
+        # content stream intact; this catches that failure mode.
+        handle_add_redaction({"page_index": 1, "rect": [40, 237, 560, 265]})
+        handle_apply_redactions({})
+        out = str(tmp_path / "redacted_binary.pdf")
+        handle_save({"path": out})
+        raw = open(out, "rb").read()
+        assert b"secret-value-1234" not in raw
+
+    def test_redaction_does_not_affect_other_page(self):
+        # Redacting page 2 must not corrupt page 1 form fields.
+        handle_add_redaction({"page_index": 1, "rect": [40, 237, 560, 265]})
+        handle_apply_redactions({})
+        result = handle_get_fields({"page_index": 0})
+        names = [f["name"] for f in result["fields"]]
+        assert "full_name" in names
+        assert "email" in names
+
+
 class TestHandleInsertText:
     def test_insert_text_takes_snapshot(self):
         before = len(pdf_server.undo_stack)

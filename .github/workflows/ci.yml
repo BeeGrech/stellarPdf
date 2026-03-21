@@ -26,10 +26,15 @@ jobs:
           python -m venv python/venv
           python/venv/bin/pip install -U pip
           python/venv/bin/pip install -r python/requirements.txt
-          python/venv/bin/pip install pylint pytest
+          python/venv/bin/pip install pylint
 
       - name: Node install
         run: npm ci
+
+      - name: Dependency audit
+        run: |
+          npm audit --audit-level=high
+          python/venv/bin/pip-audit --require-hashes=false -r python/requirements.txt
 
       - name: Validate package.json
         run: node -e "JSON.parse(require('fs').readFileSync('package.json'))"
