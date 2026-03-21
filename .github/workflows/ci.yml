@@ -46,8 +46,30 @@ jobs:
       - name: Python tests
         run: |
           python/venv/bin/python3 -m pytest --cov --cov-report=term-missing --tb=short 2>&1 | tee /tmp/pytest-output.txt
-          echo "## Python Tests" >> $GITHUB_STEP_SUMMARY
-          grep -E "^(PASSED|FAILED|ERROR|python/|tests/|[0-9]+ passed)" /tmp/pytest-output.txt | tail -5 >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Python Tests"
+            echo ""
+            grep -E "^=+ .* (passed|failed|error|errors) in " /tmp/pytest-output.txt | tail -1 || true
+            awk '
+              /^python\// && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+%$/ {
+                path = $1
+                sub(/^python\//, "", path)
+                rows[++n] = sprintf("| `%s` | %s | %s | **%s** |", path, $2, $3, $4)
+              }
+              END {
+                if (n > 0) {
+                  print ""
+                  print "### Coverage (summary)"
+                  print ""
+                  print "Per-line *Missing* lists stay in the job log only (pytest `term-missing`)."
+                  print ""
+                  print "| Module | Stmts | Miss | Cover |"
+                  print "|--------|------:|-----:|------:|"
+                  for (i = 1; i <= n; i++) print rows[i]
+                }
+              }
+            ' /tmp/pytest-output.txt
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install system deps for UI tests
         run: sudo apt-get install -y xvfb libgtk-3-0 libgbm-dev libnss3 libasound2
