@@ -6,7 +6,7 @@
 #
 # dist/ and *.AppImage stay out of git (.gitignore); CI is the source of binaries.
 
-name: Linux Packages
+name: Build & Publish Linux Packages
 
 on:
   push:
@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  appimage:
+  build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -85,7 +85,7 @@ jobs:
 
       - name: Install Playwright browsers
         if: steps.should_build.outputs.skip != 'true'
-        run: npx playwright install chromium --with-deps
+        run: npx playwright install chromium
 
       - name: Generate test fixture PDF
         if: steps.should_build.outputs.skip != 'true'

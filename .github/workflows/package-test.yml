@@ -1,8 +1,8 @@
-name: Package Installation Tests
+name: Smoke Test Installed Packages
 
 on:
   workflow_run:
-    workflows: ["Linux Packages"]
+    workflows: ["Build & Publish Linux Packages"]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   # ── Resolve the artifact run ID ──────────────────────────────────────────────
-  resolve:
+  resolve-artifact:
     runs-on: ubuntu-22.04
     outputs:
       run_id: ${{ steps.pick.outputs.run_id }}
@@ -37,8 +37,8 @@ jobs:
 
   # ── AppImage ─────────────────────────────────────────────────────────────────
   test-appimage:
-    needs: resolve
-    if: needs.resolve.outputs.skip != 'true'
+    needs: resolve-artifact
+    if: needs.resolve-artifact.outputs.skip != 'true'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -56,13 +56,13 @@ jobs:
           sudo apt-get install -y xvfb libgtk-3-0 libgbm-dev libnss3 libasound2 fuse libfuse2
 
       - name: Install Playwright
-        run: npx playwright install chromium --with-deps
+        run: npx playwright install chromium
 
       - name: Download AppImage artifact
         uses: actions/download-artifact@v4
         with:
           name: stellar-pdf-linux-packages
-          run-id: ${{ needs.resolve.outputs.run_id }}
+          run-id: ${{ needs.resolve-artifact.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: packages/
 
@@ -84,8 +84,8 @@ jobs:
 
   # ── Debian package ───────────────────────────────────────────────────────────
   test-deb:
-    needs: resolve
-    if: needs.resolve.outputs.skip != 'true'
+    needs: resolve-artifact
+    if: needs.resolve-artifact.outputs.skip != 'true'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -99,13 +99,13 @@ jobs:
         run: npm ci
 
       - name: Install Playwright
-        run: npx playwright install chromium --with-deps
+        run: npx playwright install chromium
 
       - name: Download deb artifact
         uses: actions/download-artifact@v4
         with:
           name: stellar-pdf-linux-packages
-          run-id: ${{ needs.resolve.outputs.run_id }}
+          run-id: ${{ needs.resolve-artifact.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: packages/
 
@@ -130,8 +130,8 @@ jobs:
 
   # ── RPM package (Fedora container) ───────────────────────────────────────────
   test-rpm:
-    needs: resolve
-    if: needs.resolve.outputs.skip != 'true'
+    needs: resolve-artifact
+    if: needs.resolve-artifact.outputs.skip != 'true'
     runs-on: ubuntu-22.04
     container:
       image: fedora:40
@@ -150,13 +150,13 @@ jobs:
         run: npm ci
 
       - name: Install Playwright
-        run: npx playwright install chromium --with-deps
+        run: npx playwright install chromium
 
       - name: Download rpm artifact
         uses: actions/download-artifact@v4
         with:
           name: stellar-pdf-linux-packages
-          run-id: ${{ needs.resolve.outputs.run_id }}
+          run-id: ${{ needs.resolve-artifact.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: packages/
 

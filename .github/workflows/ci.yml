@@ -1,4 +1,4 @@
-name: CI
+name: Test
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint-and-test:
     runs-on: ubuntu-22.04
 
     steps:
@@ -44,7 +44,7 @@ jobs:
         run: sudo apt-get install -y xvfb libgtk-3-0 libgbm-dev libnss3 libasound2
 
       - name: Install Playwright
-        run: npx playwright install chromium --with-deps
+        run: npx playwright install chromium
 
       - name: Generate test fixture PDF
         run: python/venv/bin/python3 python/tests/generate_test_pdf.py tests/fixtures/test_form.pdf
