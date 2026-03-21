@@ -1,0 +1,4 @@
+#!/bin/sh
+# Automatically appends Signed-off-by to every commit message.
+SIGNOFF="Signed-off-by: $(git config user.name) <$(git config user.email)>"
+grep -qF "$SIGNOFF" "$1" || printf "\n%s\n" "$SIGNOFF" >> "$1"

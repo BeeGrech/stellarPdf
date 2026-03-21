@@ -8,3 +8,5 @@ node_modules/
 tests/ui/report/
 tests/ui/test-results/
 tests/ui/report-installed/
+.coverage
+shellspec-report.xml

@@ -1,0 +1,19 @@
+#!/bin/sh
+# Runs lint and tests before every push. Abort push on any failure.
+set -e
+
+echo "==> Pre-push checks..."
+
+echo "--- Validating package.json..."
+node -e "JSON.parse(require('fs').readFileSync('package.json'))" \
+  || { echo "FAIL: package.json is invalid JSON"; exit 1; }
+
+echo "--- Python lint..."
+npm run lint:python --silent \
+  || { echo "FAIL: pylint"; exit 1; }
+
+echo "--- Python tests..."
+npm run test:python --silent \
+  || { echo "FAIL: pytest"; exit 1; }
+
+echo "==> All checks passed."

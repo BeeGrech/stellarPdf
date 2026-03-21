@@ -11,7 +11,9 @@
     "lint:python": "python/venv/bin/python3 -m pylint python/pdf_server.py",
     "test:ui": "playwright test",
     "test:ui:report": "playwright show-report tests/ui/report",
-    "test:ui:installed": "playwright test --config playwright.installed.config.js"
+    "test:ui:installed": "playwright test --config playwright.installed.config.js",
+    "coverage:python": "python/venv/bin/python3 -m pytest --cov --cov-report=term-missing",
+    "test:shell": "shellspec --format documentation"
   },
   "dependencies": {
     "pdfjs-dist": "^4.4.168",
