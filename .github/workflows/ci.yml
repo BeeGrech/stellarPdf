@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   lint-and-test:
@@ -43,7 +44,32 @@ jobs:
         run: npm run lint:python
 
       - name: Python tests
-        run: npm run test:python
+        run: |
+          python/venv/bin/python3 -m pytest --cov --cov-report=term-missing --tb=short 2>&1 | tee /tmp/pytest-output.txt
+          {
+            echo "## Python Tests"
+            echo ""
+            grep -E "^=+ .* (passed|failed|error|errors) in " /tmp/pytest-output.txt | tail -1 || true
+            awk '
+              /^python\// && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+%$/ {
+                path = $1
+                sub(/^python\//, "", path)
+                rows[++n] = sprintf("| `%s` | %s | %s | **%s** |", path, $2, $3, $4)
+              }
+              END {
+                if (n > 0) {
+                  print ""
+                  print "### Coverage (summary)"
+                  print ""
+                  print "Per-line *Missing* lists stay in the job log only (pytest `term-missing`)."
+                  print ""
+                  print "| Module | Stmts | Miss | Cover |"
+                  print "|--------|------:|-----:|------:|"
+                  for (i = 1; i <= n; i++) print rows[i]
+                }
+              }
+            ' /tmp/pytest-output.txt
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install system deps for UI tests
         run: sudo apt-get install -y xvfb libgtk-3-0 libgbm-dev libnss3 libasound2
@@ -55,7 +81,41 @@ jobs:
         run: python/venv/bin/python3 python/tests/generate_test_pdf.py tests/fixtures/test_form.pdf
 
       - name: UI tests
-        run: xvfb-run --auto-servernum npm run test:ui
+        run: |
+          xvfb-run --auto-servernum npm run test:ui 2>&1 | tee /tmp/ui-output.txt
+          echo "## UI Tests" >> $GITHUB_STEP_SUMMARY
+          grep -E "[0-9]+ passed" /tmp/ui-output.txt | tail -1 >> $GITHUB_STEP_SUMMARY
+
+      - name: Install ShellSpec
+        run: curl -fsSL https://git.io/shellspec | sh -s -- --yes
+
+      - name: ShellSpec tests
+        run: |
+          ~/.local/lib/shellspec/bin/shellspec --format documentation 2>&1 | tee /tmp/shellspec-output.txt
+          echo "## ShellSpec Tests" >> $GITHUB_STEP_SUMMARY
+          grep -E "^[0-9]+ examples?" /tmp/shellspec-output.txt >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Build packages
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          sudo apt-get install -y rpm
+          npm run pack:linux -- --publish never
+          echo "## Build Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          ls dist/*.AppImage dist/*.deb dist/*.rpm 2>/dev/null | while read f; do
+            size=$(du -sh "$f" | cut -f1)
+            echo "| $(basename $f) | $size |" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && always()
+        with:
+          name: linux-packages
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
 
       - uses: actions/upload-artifact@v4
         if: failure()
