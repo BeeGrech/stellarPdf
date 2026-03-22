@@ -8,6 +8,7 @@
 import {
   loadPdf,
   renderPage,
+  renderScrollView,
   renderThumbnail,
   getCurrentPageNum,
   getCurrentScale,
@@ -34,25 +35,30 @@ let pageCount = 0
 let currentPage = 1
 let scale = 1.5
 let hasUnsaved = false
+let viewMode = 'scroll'        // 'page' | 'scroll'
+let scrollPageTracker = null   // scroll event listener ref for cleanup
 
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
 let zoomIndex = 4  // default 1.5
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 
-const btnOpen       = document.getElementById('btn-open')
-const btnSave       = document.getElementById('btn-save')
-const btnSaveAs     = document.getElementById('btn-save-as')
-const btnApplyRedact= document.getElementById('btn-apply-redact')
-const btnPrev       = document.getElementById('btn-prev')
-const btnNext       = document.getElementById('btn-next')
-const btnZoomIn     = document.getElementById('btn-zoom-in')
-const btnZoomOut    = document.getElementById('btn-zoom-out')
-const zoomLabel     = document.getElementById('zoom-label')
-const pageLabel     = document.getElementById('page-label')
-const statusMsg     = document.getElementById('status-msg')
-const welcome       = document.getElementById('welcome')
-const thumbnailList = document.getElementById('thumbnail-list')
+const btnOpen        = document.getElementById('btn-open')
+const btnSave        = document.getElementById('btn-save')
+const btnSaveAs      = document.getElementById('btn-save-as')
+const btnApplyRedact = document.getElementById('btn-apply-redact')
+const btnPrev        = document.getElementById('btn-prev')
+const btnNext        = document.getElementById('btn-next')
+const btnZoomIn      = document.getElementById('btn-zoom-in')
+const btnZoomOut     = document.getElementById('btn-zoom-out')
+const btnViewScroll  = document.getElementById('btn-view-scroll')
+const zoomLabel      = document.getElementById('zoom-label')
+const pageLabel      = document.getElementById('page-label')
+const statusMsg      = document.getElementById('status-msg')
+const welcome        = document.getElementById('welcome')
+const thumbnailList  = document.getElementById('thumbnail-list')
+const mainView       = document.getElementById('main-view')
+const scrollContainer = document.getElementById('scroll-container')
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -111,8 +117,16 @@ async function openFile(filePath) {
     updateTitle()
     updatePageLabel()
 
-    // 5. Render first page
-    await doRenderPage(1)
+    // 5. Render first page (or all pages in scroll mode)
+    stopScrollTracking()
+    scrollContainer.innerHTML = ''
+    if (viewMode === 'scroll') {
+      setStatus('Rendering all pages…')
+      await renderScrollView(scrollContainer, scale)
+      startScrollTracking()
+    } else {
+      await doRenderPage(1)
+    }
 
     // 6. Render thumbnails (async, non-blocking)
     renderAllThumbnails()
@@ -213,6 +227,13 @@ async function renderAllThumbnails() {
     thumbnailList.appendChild(item)
 
     item.addEventListener('click', async () => {
+      if (viewMode === 'scroll') {
+        currentPage = i
+        updatePageLabel()
+        updateActiveThumbnail()
+        scrollToPageBlock(i)
+        return
+      }
       if (i === currentPage) return
       await doRenderPage(i)
     })
@@ -229,6 +250,67 @@ function updateActiveThumbnail() {
   // Scroll active thumbnail into view
   const active = thumbnailList.querySelector('.thumb-item.active')
   if (active) active.scrollIntoView({ block: 'nearest' })
+}
+
+// ─── Continuous scroll view ───────────────────────────────────────────────────
+
+async function enterScrollMode() {
+  viewMode = 'scroll'
+  document.body.dataset.view = 'scroll'
+  btnViewScroll.classList.add('active')
+  btnViewScroll.textContent = 'Single Page'
+  if (currentFilePath) {
+    setStatus('Rendering all pages…')
+    await renderScrollView(scrollContainer, scale)
+    startScrollTracking()
+    scrollToPageBlock(currentPage)
+    setStatus(`${pageCount} page${pageCount !== 1 ? 's' : ''}`)
+  }
+}
+
+function exitScrollMode() {
+  viewMode = 'page'
+  document.body.dataset.view = 'page'
+  btnViewScroll.classList.remove('active')
+  btnViewScroll.textContent = 'Continuous'
+  stopScrollTracking()
+  scrollContainer.innerHTML = ''
+  mainView.scrollTop = 0  // reset so #page-container is visible after scroll mode
+}
+
+function startScrollTracking() {
+  stopScrollTracking()
+  scrollPageTracker = () => {
+    const blocks = scrollContainer.querySelectorAll('.page-block')
+    const viewMid = mainView.scrollTop + mainView.clientHeight / 2
+    let closest = null, closestDist = Infinity
+    blocks.forEach(block => {
+      const mid = block.offsetTop + block.offsetHeight / 2
+      const dist = Math.abs(mid - viewMid)
+      if (dist < closestDist) { closestDist = dist; closest = block }
+    })
+    if (closest) {
+      const p = parseInt(closest.dataset.page)
+      if (p !== currentPage) {
+        currentPage = p
+        updatePageLabel()
+        updateActiveThumbnail()
+      }
+    }
+  }
+  mainView.addEventListener('scroll', scrollPageTracker, { passive: true })
+}
+
+function stopScrollTracking() {
+  if (scrollPageTracker) {
+    mainView.removeEventListener('scroll', scrollPageTracker)
+    scrollPageTracker = null
+  }
+}
+
+function scrollToPageBlock(pageNum) {
+  const block = scrollContainer.querySelector(`.page-block[data-page="${pageNum}"]`)
+  if (block) block.scrollIntoView({ block: 'start', behavior: 'instant' })
 }
 
 // ─── Toolbar event wiring ─────────────────────────────────────────────────────
@@ -253,11 +335,27 @@ btnApplyRedact.addEventListener('click', () => {
 })
 
 btnPrev.addEventListener('click', async () => {
-  if (currentPage > 1) await doRenderPage(currentPage - 1)
+  if (currentPage <= 1) return
+  if (viewMode === 'scroll') {
+    currentPage--
+    updatePageLabel()
+    updateActiveThumbnail()
+    scrollToPageBlock(currentPage)
+  } else {
+    await doRenderPage(currentPage - 1)
+  }
 })
 
 btnNext.addEventListener('click', async () => {
-  if (currentPage < pageCount) await doRenderPage(currentPage + 1)
+  if (currentPage >= pageCount) return
+  if (viewMode === 'scroll') {
+    currentPage++
+    updatePageLabel()
+    updateActiveThumbnail()
+    scrollToPageBlock(currentPage)
+  } else {
+    await doRenderPage(currentPage + 1)
+  }
 })
 
 btnZoomIn.addEventListener('click', async () => {
@@ -265,7 +363,15 @@ btnZoomIn.addEventListener('click', async () => {
     zoomIndex++
     scale = ZOOM_STEPS[zoomIndex]
     zoomLabel.textContent = Math.round(scale * 100) + '%'
-    await doRenderPage(currentPage)
+    if (viewMode === 'scroll' && currentFilePath) {
+      setStatus('Rendering…')
+      await renderScrollView(scrollContainer, scale)
+      startScrollTracking()
+      scrollToPageBlock(currentPage)
+      setStatus('')
+    } else {
+      await doRenderPage(currentPage)
+    }
   }
 })
 
@@ -274,7 +380,15 @@ btnZoomOut.addEventListener('click', async () => {
     zoomIndex--
     scale = ZOOM_STEPS[zoomIndex]
     zoomLabel.textContent = Math.round(scale * 100) + '%'
-    await doRenderPage(currentPage)
+    if (viewMode === 'scroll' && currentFilePath) {
+      setStatus('Rendering…')
+      await renderScrollView(scrollContainer, scale)
+      startScrollTracking()
+      scrollToPageBlock(currentPage)
+      setStatus('')
+    } else {
+      await doRenderPage(currentPage)
+    }
   }
 })
 
@@ -282,12 +396,27 @@ btnZoomOut.addEventListener('click', async () => {
 document.getElementById('tool-select').addEventListener('click', () => setActiveTool('select'))
 document.getElementById('tool-fill').addEventListener('click', async () => {
   setActiveTool('fill')
+  if (viewMode === 'scroll') { exitScrollMode(); await doRenderPage(currentPage) }
   if (currentFilePath) await loadFormFields(currentPage - 1)
 })
-document.getElementById('tool-redact').addEventListener('click', () => setActiveTool('redact'))
+document.getElementById('tool-redact').addEventListener('click', async () => {
+  setActiveTool('redact')
+  if (viewMode === 'scroll') { exitScrollMode(); await doRenderPage(currentPage) }
+})
 document.getElementById('tool-text').addEventListener('click', async () => {
   setActiveTool('text')
+  if (viewMode === 'scroll') { exitScrollMode(); await doRenderPage(currentPage) }
   if (currentFilePath) await loadDetectedFields(currentPage - 1)
+})
+
+// Continuous scroll toggle
+btnViewScroll.addEventListener('click', async () => {
+  if (viewMode === 'scroll') {
+    exitScrollMode()
+    if (currentFilePath) await doRenderPage(currentPage)
+  } else {
+    await enterScrollMode()
+  }
 })
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
@@ -306,8 +435,14 @@ document.addEventListener('keydown', async (e) => {
       setStatus('Nothing to undo')
     }
   }
-  if (e.key === 'ArrowLeft'  && currentPage > 1)         { await doRenderPage(currentPage - 1) }
-  if (e.key === 'ArrowRight' && currentPage < pageCount) { await doRenderPage(currentPage + 1) }
+  if (e.key === 'ArrowLeft' && currentPage > 1) {
+    if (viewMode === 'scroll') { currentPage--; updatePageLabel(); updateActiveThumbnail(); scrollToPageBlock(currentPage) }
+    else await doRenderPage(currentPage - 1)
+  }
+  if (e.key === 'ArrowRight' && currentPage < pageCount) {
+    if (viewMode === 'scroll') { currentPage++; updatePageLabel(); updateActiveThumbnail(); scrollToPageBlock(currentPage) }
+    else await doRenderPage(currentPage + 1)
+  }
   if (e.key === '+' || e.key === '=') { btnZoomIn.click() }
   if (e.key === '-') { btnZoomOut.click() }
 })
@@ -475,6 +610,11 @@ window.electronAPI.onMenu('menu:zoom-out',() => btnZoomOut.click())
 
 setActiveTool('select')
 document.body.dataset.tool = 'select'
+
+// Start in continuous scroll mode by default
+document.body.dataset.view = 'scroll'
+btnViewScroll.classList.add('active')
+btnViewScroll.textContent = 'Single Page'
 
 initRedactionTool()
 initTextTool(async () => {

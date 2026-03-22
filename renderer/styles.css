@@ -458,6 +458,32 @@ select.field-input {
   min-width: 60px;
 }
 
+/* ── View mode toggle button ─────────────────────────────────────────────────── */
+.view-mode-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Continuous scroll view ──────────────────────────────────────────────────── */
+#scroll-container {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+body[data-view="scroll"] #page-container { display: none; }
+body[data-view="scroll"] #scroll-container { display: flex; }
+
+.page-block {
+  flex-shrink: 0;
+  box-shadow: 0 6px 32px rgba(0,0,0,0.7), 0 2px 8px rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+}
+
+.page-block canvas { display: block; }
+
 /* ── Utility ─────────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
