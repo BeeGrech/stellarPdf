@@ -66,6 +66,16 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: packages/
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate test fixture PDF
+        run: |
+          python -m venv python/venv
+          python/venv/bin/pip install -q PyMuPDF
+          python/venv/bin/python3 python/tests/generate_test_pdf.py tests/fixtures/test_form.pdf
+
       - name: Extract AppImage
         run: |
           APPIMAGE=$(ls packages/*.AppImage | head -1)
@@ -113,6 +123,16 @@ jobs:
         run: |
           sudo dpkg -i packages/*.deb || true
           sudo apt-get install -f -y
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate test fixture PDF
+        run: |
+          python -m venv python/venv
+          python/venv/bin/pip install -q PyMuPDF
+          python/venv/bin/python3 python/tests/generate_test_pdf.py tests/fixtures/test_form.pdf
 
       - name: Set binary path
         run: echo "STELLAR_BINARY_PATH=/opt/StellarPDF/stellar-pdf" >> "$GITHUB_ENV"
@@ -162,6 +182,12 @@ jobs:
 
       - name: Install rpm package
         run: dnf install -y packages/*.rpm
+
+      - name: Generate test fixture PDF
+        run: |
+          python3 -m venv python/venv
+          python/venv/bin/pip install -q PyMuPDF
+          python/venv/bin/python3 python/tests/generate_test_pdf.py tests/fixtures/test_form.pdf
 
       - name: Set binary path
         run: echo "STELLAR_BINARY_PATH=/opt/StellarPDF/stellar-pdf" >> "$GITHUB_ENV"

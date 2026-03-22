@@ -22,12 +22,33 @@ function appRoot() {
 
 function startPython() {
   const root = appRoot()
-  const pythonBin = path.join(root, 'python', 'venv', 'bin', 'python3')
-  const serverScript = path.join(root, 'python', 'pdf_server.py')
 
-  pyProc = spawn(pythonBin, [serverScript], {
+  // Packaged: PyInstaller standalone binary (portable across distros, no host Python needed)
+  // Development: venv interpreter + script
+  const [pythonBin, args] = app.isPackaged
+    ? [path.join(root, 'python', 'pdf_server'), []]
+    : [path.join(root, 'python', 'venv', 'bin', 'python3'), [path.join(root, 'python', 'pdf_server.py')]]
+
+  pyProc = spawn(pythonBin, args, {
     stdio: ['pipe', 'pipe', 'inherit'], // inherit stderr → terminal
     cwd: root,
+  })
+
+  pyProc.on('error', (err) => {
+    console.error('Failed to start PDF server:', err)
+    const hint =
+      err.code === 'ENOENT'
+        ? app.isPackaged
+          ? '\n\nThe PDF server binary was not found in the package. Please reinstall the application.'
+          : '\n\nThe Python interpreter was not found. Create a venv:\n' +
+            '  python3 -m venv python/venv\n' +
+            '  python/venv/bin/pip install -r python/requirements.txt'
+        : ''
+    // startPython runs before createWindow — use showErrorBox so the dialog always shows
+    dialog.showErrorBox(
+      'Backend Error',
+      `Could not start PDF server (${err.code || err.message}).${hint}`,
+    )
   })
 
   pyProc.stdout.on('data', (chunk) => {
@@ -59,10 +80,18 @@ function startPython() {
     }
     pendingRpc.clear()
     if (win) {
+      const hint127 =
+        code === 127
+          ? app.isPackaged
+            ? '\n\nExit 127 usually means the bundled pdf_server binary could not execute. Please reinstall the application.'
+            : '\n\nExit 127 usually means the Python interpreter could not be executed. Rebuild the venv:\n' +
+              '  rm -rf python/venv && python3 -m venv python/venv\n' +
+              '  python/venv/bin/pip install -r python/requirements.txt'
+          : ''
       dialog.showMessageBox(win, {
         type: 'error',
         title: 'Backend Error',
-        message: `PDF server exited (code ${code}). Please restart the application.`,
+        message: `PDF server exited (code ${code}). Please restart the application.${hint127}`,
       })
     }
   })

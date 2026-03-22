@@ -1,4 +1,7 @@
 dist/
+python/dist/
+python/build/
+*.spec
 python/venv/
 .venv/
 .pytest_cache/

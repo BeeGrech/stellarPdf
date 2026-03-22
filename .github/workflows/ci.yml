@@ -79,10 +79,29 @@ jobs:
           SHELLSPEC_OUTPUT: /tmp/shellspec-output.txt
         run: python3 .github/scripts/ci_job_summary.py
 
+      - name: Check packaging-relevant changes
+        id: pkg_changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --depth=1 origin ${{ github.base_ref }}
+            CHANGED=$(git diff --name-only FETCH_HEAD HEAD)
+            echo "$CHANGED"
+            if echo "$CHANGED" | grep -qE "(main\.js|preload\.js|pdf_server\.py|package\.json|linux-appimage\.yml)"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build packages
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.pkg_changed.outputs.changed == 'true'
         run: |
           sudo apt-get install -y rpm
+          python/venv/bin/pyinstaller --onefile --name pdf_server \
+            --distpath python/dist python/pdf_server.py
+          chmod +x python/dist/pdf_server
           npm run pack:linux -- --publish never
           echo "## Build Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
@@ -93,7 +112,7 @@ jobs:
           done
 
       - uses: actions/upload-artifact@v4
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && always()
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.pkg_changed.outputs.changed == 'true') && always()
         with:
           name: linux-packages
           path: |

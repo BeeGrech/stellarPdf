@@ -105,6 +105,13 @@ jobs:
           name: playwright-report
           path: tests/ui/report/
 
+      - name: Build PyInstaller standalone binary
+        if: steps.should_build.outputs.skip != 'true'
+        run: |
+          python/venv/bin/pyinstaller --onefile --name pdf_server \
+            --distpath python/dist python/pdf_server.py
+          chmod +x python/dist/pdf_server
+
       - name: Build AppImage + deb + rpm
         if: steps.should_build.outputs.skip != 'true'
         run: npm run pack:linux -- --publish never
