@@ -6,7 +6,7 @@
  * Used by the package-test CI workflow, not the regular source test suite.
  */
 const { test, expect } = require('@playwright/test')
-const { launchInstalled } = require('./helpers/electron')
+const { launchInstalled, openFixture } = require('./helpers/electron')
 
 let electronApp, page
 
@@ -21,6 +21,23 @@ test.afterEach(async () => {
 test('app launches and shows welcome screen', async () => {
   await expect(page.locator('#welcome')).toBeVisible()
   await expect(page.locator('h2')).toHaveText('Stellar PDF')
+})
+
+test('Python backend starts without error', async () => {
+  // Verify no backend error dialog is visible - catches broken Python binary
+  // (e.g. non-portable venv, code 127, missing interpreter)
+  await expect(page.locator('.error-dialog, [class*="error"]').filter({ hasText: 'Backend Error' })).not.toBeVisible()
+  await expect(page.locator('body')).not.toContainText('PDF server exited')
+  await expect(page.locator('body')).not.toContainText('Please restart the application')
+})
+
+test('Python backend responds to RPC: open PDF and return fields', async () => {
+  // The only way this passes is if the backend process started, received the
+  // open+get_fields RPC calls, and returned valid data. A missing or broken
+  // binary (ENOENT, code 127) will leave the fill overlay empty.
+  await openFixture(page)
+  await page.locator('#tool-fill').click()
+  await expect(page.locator('.form-field-overlay').first()).toBeVisible({ timeout: 5000 })
 })
 
 test('toolbar is rendered with expected buttons', async () => {
