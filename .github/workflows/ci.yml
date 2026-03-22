@@ -103,22 +103,60 @@ jobs:
             --distpath python/dist python/pdf_server.py
           chmod +x python/dist/pdf_server
           npm run pack:linux -- --publish never
-          echo "## Build Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          rm -f /tmp/build-artifacts.txt
           ls dist/*.AppImage dist/*.deb dist/*.rpm 2>/dev/null | while read f; do
             size=$(du -sh "$f" | cut -f1)
-            echo "| $(basename $f) | $size |" >> $GITHUB_STEP_SUMMARY
+            printf '%s|%s\n' "$(basename "$f")" "$size" >> /tmp/build-artifacts.txt
           done
 
-      - uses: actions/upload-artifact@v4
+      - id: upload-appimage
+        uses: actions/upload-artifact@v4
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.pkg_changed.outputs.changed == 'true') && always()
         with:
-          name: linux-packages
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.rpm
+          name: stellar-pdf-appimage
+          path: dist/*.AppImage
+
+      - id: upload-deb
+        uses: actions/upload-artifact@v4
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.pkg_changed.outputs.changed == 'true') && always()
+        with:
+          name: stellar-pdf-deb
+          path: dist/*.deb
+
+      - id: upload-rpm
+        uses: actions/upload-artifact@v4
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.pkg_changed.outputs.changed == 'true') && always()
+        with:
+          name: stellar-pdf-rpm
+          path: dist/*.rpm
+
+      - name: Add artifact links to summary
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.pkg_changed.outputs.changed == 'true') && always()
+        env:
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          APPIMAGE_ID: ${{ steps.upload-appimage.outputs.artifact-id }}
+          DEB_ID: ${{ steps.upload-deb.outputs.artifact-id }}
+          RPM_ID: ${{ steps.upload-rpm.outputs.artifact-id }}
+        run: |
+          echo "## Build Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size | Download |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|----------|" >> $GITHUB_STEP_SUMMARY
+          while IFS='|' read -r name size; do
+            case "$name" in
+              *.AppImage) id="$APPIMAGE_ID" ;;
+              *.deb)      id="$DEB_ID" ;;
+              *.rpm)      id="$RPM_ID" ;;
+              *)          id="" ;;
+            esac
+            if [ -n "$id" ]; then
+              url="https://github.com/$REPO/actions/runs/$RUN_ID/artifacts/$id"
+              echo "| \`$name\` | $size | [Download]($url) |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| \`$name\` | $size | — |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done < /tmp/build-artifacts.txt
 
       - uses: actions/upload-artifact@v4
         if: failure()
