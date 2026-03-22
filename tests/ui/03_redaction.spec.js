@@ -41,6 +41,13 @@ test('drawing a redaction box shows Apply button', async () => {
   )
 
   await page.click('#tool-redact')
+  // Wait for page render to complete (canvas starts unsized in scroll mode; data-rendered
+  // is set after page.render().promise resolves, ensuring the canvas is fully ready)
+  await page.waitForFunction(
+    (p) => document.getElementById('pdf-canvas').dataset.rendered === String(p),
+    2,  // page 2
+    { timeout: 8000 }
+  )
 
   const canvas = page.locator('#redact-canvas')
   const box = await canvas.boundingBox()
@@ -67,6 +74,13 @@ test('applying redaction removes target text from PDF', async () => {
   )
 
   await page.click('#tool-redact')
+  // Wait for page render to complete (canvas starts unsized in scroll mode; data-rendered
+  // is set after page.render().promise resolves, ensuring the canvas is fully ready)
+  await page.waitForFunction(
+    (p) => document.getElementById('pdf-canvas').dataset.rendered === String(p),
+    2,  // page 2
+    { timeout: 8000 }
+  )
 
   const canvas = page.locator('#redact-canvas')
   const box = await canvas.boundingBox()

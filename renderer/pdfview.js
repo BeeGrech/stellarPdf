@@ -43,6 +43,7 @@ export function getCurrentViewport() { return currentViewport }
 
 export async function renderPage(pageNum, scale) {
   if (!pdfDoc) return null
+  canvas.dataset.rendered = ''   // clear while render is in progress
   currentPageNum = pageNum
   currentScale = scale
 
@@ -85,7 +86,44 @@ export async function renderPage(pageNum, scale) {
     transform,
   }).promise
 
+  canvas.dataset.rendered = String(pageNum)  // signal: render complete for this page
   return viewport
+}
+
+// ─── Continuous scroll render ─────────────────────────────────────────────────
+
+/**
+ * Render all pages sequentially into `container` as stacked .page-block divs.
+ * Each block contains a single <canvas>. No tool overlays — read-only view.
+ */
+export async function renderScrollView(container, scale) {
+  if (!pdfDoc) return
+  container.innerHTML = ''
+  const pixelRatio = window.devicePixelRatio || 1
+
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const block = document.createElement('div')
+    block.className = 'page-block'
+    block.dataset.page = String(i)
+
+    const cnv = document.createElement('canvas')
+    block.appendChild(cnv)
+    container.appendChild(block)
+
+    const page = await pdfDoc.getPage(i)
+    const viewport = page.getViewport({ scale })
+    const cssWidth  = Math.floor(viewport.width)
+    const cssHeight = Math.floor(viewport.height)
+
+    cnv.width  = Math.floor(viewport.width  * pixelRatio)
+    cnv.height = Math.floor(viewport.height * pixelRatio)
+    cnv.style.width  = cssWidth  + 'px'
+    cnv.style.height = cssHeight + 'px'
+    block.style.width = cssWidth + 'px'
+
+    const transform = pixelRatio !== 1 ? [pixelRatio, 0, 0, pixelRatio, 0, 0] : null
+    await page.render({ canvasContext: cnv.getContext('2d'), viewport, transform }).promise
+  }
 }
 
 // ─── Thumbnail ───────────────────────────────────────────────────────────────
