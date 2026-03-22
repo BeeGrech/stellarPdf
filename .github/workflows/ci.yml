@@ -49,30 +49,6 @@ jobs:
       - name: Python tests
         run: |
           python/venv/bin/python3 -m pytest --cov --cov-report=term-missing --tb=short 2>&1 | tee /tmp/pytest-output.txt
-          {
-            echo "## Python Tests"
-            echo ""
-            grep -E "^=+ .* (passed|failed|error|errors) in " /tmp/pytest-output.txt | tail -1 || true
-            awk '
-              /^python\// && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+%$/ {
-                path = $1
-                sub(/^python\//, "", path)
-                rows[++n] = sprintf("| `%s` | %s | %s | **%s** |", path, $2, $3, $4)
-              }
-              END {
-                if (n > 0) {
-                  print ""
-                  print "### Coverage (summary)"
-                  print ""
-                  print "Per-line *Missing* lists stay in the job log only (pytest `term-missing`)."
-                  print ""
-                  print "| Module | Stmts | Miss | Cover |"
-                  print "|--------|------:|-----:|------:|"
-                  for (i = 1; i <= n; i++) print rows[i]
-                }
-              }
-            ' /tmp/pytest-output.txt
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install system deps for UI tests
         run: sudo apt-get install -y xvfb libgtk-3-0 libgbm-dev libnss3 libasound2
@@ -86,8 +62,6 @@ jobs:
       - name: UI tests
         run: |
           xvfb-run --auto-servernum npm run test:ui 2>&1 | tee /tmp/ui-output.txt
-          echo "## UI Tests" >> $GITHUB_STEP_SUMMARY
-          grep -E "[0-9]+ passed" /tmp/ui-output.txt | tail -1 >> $GITHUB_STEP_SUMMARY
 
       - name: Install ShellSpec
         run: curl -fsSL https://git.io/shellspec | sh -s -- --yes
@@ -95,8 +69,15 @@ jobs:
       - name: ShellSpec tests
         run: |
           ~/.local/lib/shellspec/bin/shellspec --format documentation 2>&1 | tee /tmp/shellspec-output.txt
-          echo "## ShellSpec Tests" >> $GITHUB_STEP_SUMMARY
-          grep -E "^[0-9]+ examples?" /tmp/shellspec-output.txt >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Write job summary (test results + coverage)
+        if: always()
+        env:
+          PYTEST_OUTPUT: /tmp/pytest-output.txt
+          PLAYWRIGHT_JSON: tests/ui/playwright-results.json
+          PLAYWRIGHT_LIST_PATH: /tmp/ui-output.txt
+          SHELLSPEC_OUTPUT: /tmp/shellspec-output.txt
+        run: python3 .github/scripts/ci_job_summary.py
 
       - name: Build packages
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'

@@ -6,7 +6,9 @@ __pycache__/
 *.pyc
 node_modules/
 tests/ui/report/
+tests/ui/playwright-results.json
 tests/ui/test-results/
 tests/ui/report-installed/
 .coverage
 shellspec-report.xml
+PORTABLE_AGENT_CONFIG

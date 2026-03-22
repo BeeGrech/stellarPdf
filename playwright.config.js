@@ -6,7 +6,11 @@ module.exports = defineConfig({
   testIgnore: '00_installed_smoke.spec.js',
   timeout: 30000,
   retries: 1,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'tests/ui/report' }]],
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'tests/ui/report' }],
+    ['json', { outputFile: 'tests/ui/playwright-results.json' }],
+  ],
   use: {
     trace: 'on-first-retry',
   },
