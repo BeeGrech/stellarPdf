@@ -24,13 +24,16 @@ jobs:
 
       - name: Python venv + deps
         run: |
-          python -m venv python/venv
+          python -m venv python/venv --copies
           python/venv/bin/pip install -U pip
           python/venv/bin/pip install -r python/requirements.txt
           python/venv/bin/pip install pylint
 
       - name: Node install
         run: npm ci
+
+      - name: Node script tests (venv bundle guard)
+        run: npm run test:scripts
 
       - name: Dependency audit
         run: |
