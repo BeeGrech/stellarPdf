@@ -1,6 +1,10 @@
 /**
  * Redaction tests — page 2 of the fixture has "REDACT_TARGET: secret-value-1234"
  * which should be permanently removed after applying redactions.
+ *
+ * REDACT_TARGET is inserted at PDF coords (50, 250) baseline on a 612×792 page.
+ * Mouse coordinates are derived from the canvas bounding box so the test is
+ * scale-independent: scale = canvas_css_width / PAGE_WIDTH_PTS.
  */
 const { test, expect } = require('@playwright/test')
 const { launchApp, openFixture, FIXTURE_PDF } = require('./helpers/electron')
@@ -11,6 +15,15 @@ const fs = require('fs')
 
 const ROOT = path.resolve(__dirname, '../..')
 const PYTHON = path.join(ROOT, 'python/venv/bin/python3')
+
+// Page width from generate_test_pdf.py (612pt × 792pt)
+const PAGE_WIDTH_PTS = 612
+// REDACT_TARGET rect in PyMuPDF coords (top-left origin, y↓)
+// insert_text((50, 250), ..., fontsize=12) — baseline at y=250
+const REDACT_X0 = 40   // a bit left of text start
+const REDACT_Y0 = 236  // above baseline by ~1 line height
+const REDACT_X1 = 510  // well past end of text line
+const REDACT_Y1 = 262  // below baseline
 
 let electronApp, page
 
@@ -23,6 +36,42 @@ test.afterEach(async () => {
   await electronApp.close()
 })
 
+/**
+ * Navigate to page 2 and activate the Redact tool (which auto-switches to
+ * single-page view), then wait for canvas render to complete.
+ * Returns the screen bounding box of #redact-canvas.
+ */
+async function goToPage2AndActivateRedact(pg) {
+  await pg.click('#btn-next')
+  await pg.waitForFunction(() =>
+    document.getElementById('page-label').textContent === '2 / 2'
+  )
+
+  await pg.click('#tool-redact')
+  await pg.waitForFunction(
+    (p) => document.getElementById('pdf-canvas').dataset.rendered === String(p),
+    2,
+    { timeout: 8000 }
+  )
+
+  return pg.locator('#redact-canvas').boundingBox()
+}
+
+/**
+ * Drag a redaction rectangle over the REDACT_TARGET line.
+ * Coordinates are derived from the canvas bounding box width so they adapt
+ * automatically to any zoom level (scale = canvas_css_width / PAGE_WIDTH_PTS).
+ */
+async function drawRedactBox(pg, box) {
+  const scale = box.width / PAGE_WIDTH_PTS
+  await pg.mouse.move(box.x + REDACT_X0 * scale, box.y + REDACT_Y0 * scale)
+  await pg.mouse.down()
+  await pg.mouse.move(box.x + REDACT_X1 * scale, box.y + REDACT_Y1 * scale)
+  await pg.mouse.up()
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
 test('redact tool enables canvas drawing', async () => {
   await openFixture(page)
   await page.click('#tool-redact')
@@ -33,31 +82,8 @@ test('redact tool enables canvas drawing', async () => {
 
 test('drawing a redaction box shows Apply button', async () => {
   await openFixture(page)
-
-  // Navigate to page 2 where the redaction target is
-  await page.click('#btn-next')
-  await page.waitForFunction(() =>
-    document.getElementById('page-label').textContent === '2 / 2'
-  )
-
-  await page.click('#tool-redact')
-  // Wait for page render to complete (canvas starts unsized in scroll mode; data-rendered
-  // is set after page.render().promise resolves, ensuring the canvas is fully ready)
-  await page.waitForFunction(
-    (p) => document.getElementById('pdf-canvas').dataset.rendered === String(p),
-    2,  // page 2
-    { timeout: 8000 }
-  )
-
-  const canvas = page.locator('#redact-canvas')
-  const box = await canvas.boundingBox()
-
-  // Draw a box roughly over the REDACT_TARGET text (upper portion of page)
-  await page.mouse.move(box.x + 30, box.y + 150)
-  await page.mouse.down()
-  await page.mouse.move(box.x + 400, box.y + 175)
-  await page.mouse.up()
-
+  const box = await goToPage2AndActivateRedact(page)
+  await drawRedactBox(page, box)
   await expect(page.locator('#btn-apply-redact')).not.toHaveClass(/hidden/)
 })
 
@@ -68,27 +94,8 @@ test('applying redaction removes target text from PDF', async () => {
   await page.evaluate(async (p) => window.__testOpenFile(p), tmp)
   await page.waitForSelector('#welcome.hidden', { state: 'attached', timeout: 10000 })
 
-  await page.click('#btn-next')
-  await page.waitForFunction(() =>
-    document.getElementById('page-label').textContent === '2 / 2'
-  )
-
-  await page.click('#tool-redact')
-  // Wait for page render to complete (canvas starts unsized in scroll mode; data-rendered
-  // is set after page.render().promise resolves, ensuring the canvas is fully ready)
-  await page.waitForFunction(
-    (p) => document.getElementById('pdf-canvas').dataset.rendered === String(p),
-    2,  // page 2
-    { timeout: 8000 }
-  )
-
-  const canvas = page.locator('#redact-canvas')
-  const box = await canvas.boundingBox()
-
-  await page.mouse.move(box.x + 20, box.y + 330)
-  await page.mouse.down()
-  await page.mouse.move(box.x + 500, box.y + 395)
-  await page.mouse.up()
+  const box = await goToPage2AndActivateRedact(page)
+  await drawRedactBox(page, box)
 
   await page.click('#btn-apply-redact')
 
