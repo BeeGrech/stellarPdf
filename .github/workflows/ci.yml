@@ -38,7 +38,8 @@ jobs:
       - name: Dependency audit
         run: |
           npm audit --omit=dev --audit-level=high
-          python/venv/bin/pip-audit -r python/requirements.txt
+          # CVE-2026-4539 (pygments): no fix version released yet; tracked until patched
+          python/venv/bin/pip-audit -r python/requirements.txt --ignore-vuln CVE-2026-4539
 
       - name: Validate package.json
         run: node -e "JSON.parse(require('fs').readFileSync('package.json'))"
