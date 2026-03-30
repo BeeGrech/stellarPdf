@@ -81,7 +81,9 @@ jobs:
           APPIMAGE=$(ls packages/*.AppImage | head -1)
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
-          echo "STELLAR_BINARY_PATH=$(pwd)/squashfs-root/stellar-pdf" >> "$GITHUB_ENV"
+          BINARY=$(find squashfs-root -maxdepth 1 -type f -executable | head -1)
+          echo "Found binary: $BINARY"
+          echo "STELLAR_BINARY_PATH=$(pwd)/$BINARY" >> "$GITHUB_ENV"
 
       - name: Run installed smoke tests (AppImage)
         run: xvfb-run --auto-servernum npm run test:ui:installed
@@ -135,7 +137,12 @@ jobs:
           python/venv/bin/python3 python/tests/generate_test_pdf.py tests/fixtures/test_form.pdf
 
       - name: Set binary path
-        run: echo "STELLAR_BINARY_PATH=/opt/StellarPDF/stellar-pdf" >> "$GITHUB_ENV"
+        run: |
+          PKG=$(dpkg -l | awk '/stellar/{print $2; exit}')
+          INSTALL_DIR=$(dpkg -L "$PKG" | grep -m1 '^/opt/')
+          BINARY=$(find "$INSTALL_DIR" -maxdepth 1 -type f -executable | head -1)
+          echo "Found binary: $BINARY (package: $PKG)"
+          echo "STELLAR_BINARY_PATH=$BINARY" >> "$GITHUB_ENV"
 
       - name: Run installed smoke tests (deb)
         run: |
@@ -190,7 +197,12 @@ jobs:
           python/venv/bin/python3 python/tests/generate_test_pdf.py tests/fixtures/test_form.pdf
 
       - name: Set binary path
-        run: echo "STELLAR_BINARY_PATH=/opt/StellarPDF/stellar-pdf" >> "$GITHUB_ENV"
+        run: |
+          PKG=$(rpm -qa | grep -i stellar | head -1)
+          INSTALL_DIR=$(rpm -ql "$PKG" | grep -m1 '^/opt/')
+          BINARY=$(find "$INSTALL_DIR" -maxdepth 1 -type f -executable | head -1)
+          echo "Found binary: $BINARY (package: $PKG)"
+          echo "STELLAR_BINARY_PATH=$BINARY" >> "$GITHUB_ENV"
 
       - name: Run installed smoke tests (rpm)
         run: xvfb-run --auto-servernum npm run test:ui:installed
