@@ -81,8 +81,10 @@ jobs:
           APPIMAGE=$(ls packages/*.AppImage | head -1)
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
-          BINARY=$(find squashfs-root -maxdepth 1 -type f -executable | head -1)
+          BINARY=$(find squashfs-root -name 'stellar-pdf' -type f | head -1)
           echo "Found binary: $BINARY"
+          test -n "$BINARY" && test -f "$BINARY" \
+            || { echo "ERROR: stellar-pdf binary not found in squashfs-root"; exit 1; }
           echo "STELLAR_BINARY_PATH=$(pwd)/$BINARY" >> "$GITHUB_ENV"
 
       - name: Run installed smoke tests (AppImage)
@@ -139,9 +141,10 @@ jobs:
       - name: Set binary path
         run: |
           PKG=$(dpkg -l | awk '/stellar/{print $2; exit}')
-          INSTALL_DIR=$(dpkg -L "$PKG" | grep -m1 '^/opt/')
-          BINARY=$(find "$INSTALL_DIR" -maxdepth 1 -type f -executable | head -1)
+          BINARY=$(dpkg -L "$PKG" | grep '/stellar-pdf$')
           echo "Found binary: $BINARY (package: $PKG)"
+          test -n "$BINARY" && test -f "$BINARY" \
+            || { echo "ERROR: stellar-pdf binary not found in package $PKG"; exit 1; }
           echo "STELLAR_BINARY_PATH=$BINARY" >> "$GITHUB_ENV"
 
       - name: Run installed smoke tests (deb)
@@ -199,9 +202,10 @@ jobs:
       - name: Set binary path
         run: |
           PKG=$(rpm -qa | grep -i stellar | head -1)
-          INSTALL_DIR=$(rpm -ql "$PKG" | grep -m1 '^/opt/')
-          BINARY=$(find "$INSTALL_DIR" -maxdepth 1 -type f -executable | head -1)
+          BINARY=$(rpm -ql "$PKG" | grep '/stellar-pdf$')
           echo "Found binary: $BINARY (package: $PKG)"
+          test -n "$BINARY" && test -f "$BINARY" \
+            || { echo "ERROR: stellar-pdf binary not found in package $PKG"; exit 1; }
           echo "STELLAR_BINARY_PATH=$BINARY" >> "$GITHUB_ENV"
 
       - name: Run installed smoke tests (rpm)
