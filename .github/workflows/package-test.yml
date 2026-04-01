@@ -141,7 +141,9 @@ jobs:
       - name: Set binary path
         run: |
           PKG=$(dpkg -l | awk '/stellar/{print $2; exit}')
-          BINARY=$(dpkg -L "$PKG" | grep '/stellar-pdf$')
+          BINARY=$(dpkg -L "$PKG" | grep '/stellar-pdf$' | while IFS= read -r f; do
+            [ -f "$f" ] && [ -x "$f" ] && echo "$f" && break
+          done)
           echo "Found binary: $BINARY (package: $PKG)"
           test -n "$BINARY" && test -f "$BINARY" \
             || { echo "ERROR: stellar-pdf binary not found in package $PKG"; exit 1; }
