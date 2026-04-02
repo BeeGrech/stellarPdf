@@ -28,12 +28,22 @@ jobs:
             echo "run_id=${{ inputs.run_id }}" >> "$GITHUB_OUTPUT"
             echo "skip=false" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
-            echo "run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            RUN_ID="${{ github.event.workflow_run.id }}"
+            ARTIFACT_COUNT=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts \
+              --jq '.total_count')
+            if [ "$ARTIFACT_COUNT" -eq 0 ]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Upstream build succeeded but uploaded no artifacts (likely skipped) — skipping package tests."
+            else
+              echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Upstream build did not succeed — skipping package tests."
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── AppImage ─────────────────────────────────────────────────────────────────
   test-appimage:
@@ -141,7 +151,9 @@ jobs:
       - name: Set binary path
         run: |
           PKG=$(dpkg -l | awk '/stellar/{print $2; exit}')
-          BINARY=$(dpkg -L "$PKG" | grep '/stellar-pdf$')
+          BINARY=$(dpkg -L "$PKG" | grep '/stellar-pdf$' | while IFS= read -r f; do
+            [ -f "$f" ] && [ -x "$f" ] && echo "$f" && break
+          done)
           echo "Found binary: $BINARY (package: $PKG)"
           test -n "$BINARY" && test -f "$BINARY" \
             || { echo "ERROR: stellar-pdf binary not found in package $PKG"; exit 1; }
