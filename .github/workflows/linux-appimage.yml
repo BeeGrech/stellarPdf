@@ -134,7 +134,8 @@ jobs:
           name: stellar-pdf-rpm
           path: dist/*.rpm
 
-      # Rolling prerelease: move tag "nightly" to this commit, then upload asset.
+      # Rolling prerelease: move tag "nightly" to this commit.
+      # Actual release publish happens in package-test.yml after smoke tests pass.
       # If tag protection blocks force-push, remove protection for "nightly" or use dated tags instead.
       - name: Update nightly tag
         if: steps.should_build.outputs.skip != 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -143,29 +144,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -fa nightly -m "Nightly AppImage"
           git push -f origin refs/tags/nightly
-
-      - name: Publish nightly prerelease
-        if: steps.should_build.outputs.skip != 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "dist/*.AppImage,dist/*.deb,dist/*.rpm"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: nightly
-          name: Nightly (Linux)
-          body: |
-            Automated build from commit `${{ github.sha }}` on `${{ github.ref_name }}`.
-
-            | Format | Distro |
-            |--------|--------|
-            | `.AppImage` | Universal |
-            | `.deb` | Ubuntu / Debian |
-            | `.rpm` | Fedora / RHEL |
-
-            [View this workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
-          prerelease: true
-          allowUpdates: true
-          replacesArtifacts: true
-          skipIfReleaseExists: false
 
       - name: Publish release packages (version tag)
         if: steps.should_build.outputs.skip != 'true' && startsWith(github.ref, 'refs/tags/v')

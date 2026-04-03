@@ -11,7 +11,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 jobs:
@@ -218,3 +218,57 @@ jobs:
         with:
           name: rpm-test-report
           path: tests/ui/report-installed/
+
+  # ── Promote to nightly release (only if all smoke tests pass) ─────────────
+  promote-nightly:
+    needs: [resolve-artifact, test-appimage, test-deb, test-rpm]
+    if: needs.resolve-artifact.outputs.skip != 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download AppImage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: stellar-pdf-appimage
+          run-id: ${{ needs.resolve-artifact.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist/
+
+      - name: Download deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: stellar-pdf-deb
+          run-id: ${{ needs.resolve-artifact.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist/
+
+      - name: Download rpm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: stellar-pdf-rpm
+          run-id: ${{ needs.resolve-artifact.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist/
+
+      - name: Publish nightly prerelease
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "dist/*"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: nightly
+          name: Nightly (Linux)
+          body: |
+            Smoke-tested build from commit `${{ github.event.workflow_run.head_sha }}`.
+            All three package formats (AppImage, deb, rpm) passed installed smoke tests.
+
+            | Format | Distro |
+            |--------|--------|
+            | `.AppImage` | Universal |
+            | `.deb` | Ubuntu / Debian |
+            | `.rpm` | Fedora / RHEL |
+
+            [Build run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.resolve-artifact.outputs.run_id }}) · [Test run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          prerelease: true
+          allowUpdates: true
+          removeArtifacts: true
+          replacesArtifacts: true
+          skipIfReleaseExists: false
